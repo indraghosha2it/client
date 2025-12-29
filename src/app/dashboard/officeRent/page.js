@@ -13,19 +13,19 @@ export default function OfficeRent() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [editingId, setEditingId] = useState(null);
-  const [summary, setSummary] = useState({
-    totalPaid: 0,
-    totalUnpaid: 0,
-    totalRecords: 0,
-    totalAmount: 0
-  });
+  // const [summary, setSummary] = useState({
+  //   totalPaid: 0,
+  //   totalUnpaid: 0,
+  //   totalRecords: 0,
+  //   totalAmount: 0
+  // });
 
-  const API_URL = "http://localhost:5000/api";
+  const API_URL = "http://localhost:5001/api";
 
   // Fetch office rents when page loads
   useEffect(() => {
     fetchOfficeRents();
-    fetchSummary();
+    // fetchSummary();
   }, []);
 
   // Fetch all office rents
@@ -60,19 +60,32 @@ export default function OfficeRent() {
   };
 
   // Fetch summary
-  const fetchSummary = async () => {
-    try {
-      const response = await fetch(`${API_URL}/office-rents/summary`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setSummary(data.data);
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching summary:", error);
-    }
-  };
+ // Fetch summary
+// const fetchSummary = async () => {
+//   try {
+//     const response = await fetch(`${API_URL}/office-rents/summary`);
+//     const data = await response.json();
+    
+//     if (!response.ok) {
+//       throw new Error(data.error || `HTTP error! status: ${response.status}`);
+//     }
+    
+//     if (data.success) {
+//       setSummary(data.data);
+//     } else {
+//       console.error("Failed to fetch summary:", data.error);
+//     }
+//   } catch (error) {
+//     console.error("Error fetching summary:", error);
+//     // Set default summary values if API fails
+//     setSummary({
+//       totalPaid: 0,
+//       totalUnpaid: 0,
+//       totalRecords: 0,
+//       totalAmount: 0
+//     });
+//   }
+// };
 
   // Fetch single rent for editing
   const fetchRentForEdit = async (id) => {
@@ -255,7 +268,7 @@ export default function OfficeRent() {
         </h1>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        {/* <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <div className="bg-white rounded-xl shadow p-4">
             <div className="text-sm text-gray-500">Total Records</div>
             <div className="text-2xl font-bold">{summary.totalRecords}</div>
@@ -278,9 +291,9 @@ export default function OfficeRent() {
               ₹{summary.totalAmount.toLocaleString()}
             </div>
           </div>
-        </div>
+        </div> */}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1  gap-8">
           {/* Left: Rent Form */}
           <div className="bg-white rounded-xl shadow-lg p-6">
             <div className="flex justify-between items-center mb-6">
@@ -295,7 +308,7 @@ export default function OfficeRent() {
             </div>
 
             {/* Message Display */}
-            {message.text && (
+            {/* {message.text && (
               <div className={`mb-4 p-4 rounded-lg ${message.type === 'success' ? 'bg-green-100 border border-green-300 text-green-800' : message.type === 'error' ? 'bg-red-100 border border-red-300 text-red-800' : 'bg-blue-100 border border-blue-300 text-blue-800'}`}>
                 <div className="flex items-center">
                   <span className="mr-2">
@@ -306,7 +319,7 @@ export default function OfficeRent() {
                   <span>{message.text}</span>
                 </div>
               </div>
-            )}
+            )} */}
 
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Date */}
@@ -493,16 +506,6 @@ export default function OfficeRent() {
               </div>
             )}
 
-            {/* Database Info */}
-            <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-              <h4 className="font-medium text-gray-700 mb-2">Database Information</h4>
-              <div className="text-sm text-gray-600 space-y-1">
-                <p>• Data stored in MongoDB Atlas collection: <code className="bg-gray-200 px-1 rounded">officerents</code></p>
-                <p>• Each record has unique ID and timestamps</p>
-                <p>• CRUD operations fully functional</p>
-                <p>• Status tracking with color coding</p>
-              </div>
-            </div>
           </div>
         </div>
       </div>

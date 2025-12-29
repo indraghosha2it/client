@@ -113,7 +113,7 @@ export default function EmployeePage() {
   const [isEditMode, setIsEditMode] = useState(false); // Track if we're in edit mode
 
   // Backend API URL
-  const API_URL = "http://localhost:5000/api";
+  const API_URL = "http://localhost:5001/api";
 
   // Fetch employees when page loads
   useEffect(() => {
