@@ -34,10 +34,10 @@ export default function DashboardLayout({ children }) {
     { name: 'Software subscriptions', icon: Cloud, href: '/dashboard/subscriptions' },
     { name: 'Transport', icon: Car, href: '/dashboard/transport' },
     { name: 'Miscellaneous expenses', icon: MoreHorizontal, href: '/dashboard/extra' },
-    { name: 'Reports', icon: FileText, href: '/dashboard/reports' },
-    { name: 'Analytics', icon: PieChart, href: '/dashboard/analytics' },
-    { name: 'Categories', icon: DollarSign, href: '/dashboard/categories' },
-    { name: 'Settings', icon: Settings, href: '/dashboard/settings' },
+    // { name: 'Reports', icon: FileText, href: '/dashboard/reports' },
+    // { name: 'Analytics', icon: PieChart, href: '/dashboard/analytics' },
+    // { name: 'Categories', icon: DollarSign, href: '/dashboard/categories' },
+    // { name: 'Settings', icon: Settings, href: '/dashboard/settings' },
   ];
 
   // Function to check if a nav item is active

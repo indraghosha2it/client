@@ -1,98 +1,3 @@
-// "use client";
-
-// import React, { useState } from "react";
-
-// export default function EmployeePage() {
-//   const [formData, setFormData] = useState({
-//     name: "",
-//     designation: "",
-//     salary: "",
-//   });
-
-//   const handleChange = (e) => {
-//     const { name, value } = e.target;
-//     setFormData({ ...formData, [name]: value });
-//   };
-
-//   const handleSubmit = (e) => {
-//     e.preventDefault();
-//     console.log(formData);
-//     alert("Employee data submitted!");
-//   };
-
-//   return (
-//     <div className="min-h-screen flex items-center justify-center bg-gray-100">
-//       <div className="w-full max-w-lg bg-white rounded-lg shadow-md p-6">
-//         <h2 className="text-2xl font-semibold text-center mb-6">
-//           Employee Form
-//         </h2>
-
-//         <form onSubmit={handleSubmit} className="space-y-4">
-//           {/* Row 1 - Employee Name */}
-//           <div>
-//             <label className="block text-sm font-medium text-gray-700 mb-1">
-//               Employee Name
-//             </label>
-//             <input
-//               type="text"
-//               name="name"
-//               placeholder="Enter employee name"
-//               value={formData.name}
-//               onChange={handleChange}
-//               className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
-//               required
-//             />
-//           </div>
-
-//           {/* Row 2 - Designation & Salary */}
-//           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-//             {/* Designation */}
-//             <div>
-//               <label className="block text-sm font-medium text-gray-700 mb-1">
-//                 Designation
-//               </label>
-//               <input
-//                 type="text"
-//                 name="designation"
-//                 placeholder="Enter designation"
-//                 value={formData.designation}
-//                 onChange={handleChange}
-//                 className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
-//                 required
-//               />
-//             </div>
-
-//             {/* Salary */}
-//             <div>
-//               <label className="block text-sm font-medium text-gray-700 mb-1">
-//                 Salary
-//               </label>
-//               <input
-//                 type="number"
-//                 name="salary"
-//                 placeholder="Enter salary"
-//                 value={formData.salary}
-//                 onChange={handleChange}
-//                 className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
-//                 required
-//               />
-//             </div>
-//           </div>
-
-//           {/* Submit Button */}
-//           <button
-//             type="submit"
-//             className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition"
-//           >
-//             Submit
-//           </button>
-//         </form>
-//       </div>
-      
-//     </div>
-    
-//   );
-// }
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -104,13 +9,16 @@ export default function EmployeePage() {
     salary: "",
     email: "",
     phone: "",
+    paymentMethod: "Bank Transfer", // New field
+    notes: "", // New field
+    hireDate: new Date().toISOString().split('T')[0] // New field with today's date
   });
 
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
-  const [editingId, setEditingId] = useState(null); // Track which employee is being edited
-  const [isEditMode, setIsEditMode] = useState(false); // Track if we're in edit mode
+  const [editingId, setEditingId] = useState(null);
+  const [isEditMode, setIsEditMode] = useState(false);
 
   // Backend API URL
   const API_URL = "http://localhost:5001/api";
@@ -137,7 +45,7 @@ export default function EmployeePage() {
         if (!isEditMode) {
           setMessage({ 
             type: 'success', 
-            text: `Loaded ${data.count} employees ` 
+            text: `Loaded ${data.count} employees` 
           });
         }
       } else {
@@ -149,7 +57,7 @@ export default function EmployeePage() {
     } catch (error) {
       setMessage({ 
         type: 'error', 
-        text: `Cannot connect to backend: ${error.message}. Make sure backend is running on port 5000!` 
+        text: `Cannot connect to backend: ${error.message}. Make sure backend is running on port 5001!` 
       });
       console.error("Error fetching employees:", error);
     } finally {
@@ -179,7 +87,9 @@ export default function EmployeePage() {
           salary: employee.salary.toString(),
           email: employee.email || "",
           phone: employee.phone || "",
-          department: employee.department || "General"
+          paymentMethod: employee.paymentMethod || "Bank Transfer",
+          notes: employee.notes || "",
+          hireDate: employee.hireDate ? new Date(employee.hireDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
         });
         setEditingId(id);
         setIsEditMode(true);
@@ -257,7 +167,9 @@ export default function EmployeePage() {
           salary: "",
           email: "",
           phone: "",
-          department: "General"
+          paymentMethod: "Bank Transfer",
+          notes: "",
+          hireDate: new Date().toISOString().split('T')[0]
         });
         
         setEditingId(null);
@@ -292,7 +204,9 @@ export default function EmployeePage() {
       salary: "",
       email: "",
       phone: "",
-      department: "General"
+      paymentMethod: "Bank Transfer",
+      notes: "",
+      hireDate: new Date().toISOString().split('T')[0]
     });
     setEditingId(null);
     setIsEditMode(false);
@@ -337,14 +251,23 @@ export default function EmployeePage() {
     }
   };
 
+  // Format date for display
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-6xl mx-auto">
         <h1 className="text-3xl font-bold text-center mb-8 text-gray-800">
           Employee Management System
         </h1>
-
-    
 
         {/* Message Display */}
         {message.text && (
@@ -430,7 +353,7 @@ export default function EmployeePage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Salary  *
+                    Salary *
                   </label>
                   <input
                     type="number"
@@ -478,6 +401,62 @@ export default function EmployeePage() {
                     disabled={loading}
                   />
                 </div>
+              </div>
+
+              {/* Hire Date & Payment Method */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Hire Date *
+                  </label>
+                  <input
+                    type="date"
+                    name="hireDate"
+                    value={formData.hireDate}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                    disabled={loading}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Payment Method *
+                  </label>
+                  <select
+                    name="paymentMethod"
+                    value={formData.paymentMethod}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                    required
+                    disabled={loading}
+                  >
+                    <option value="Bank Transfer">Bank Transfer</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Check">Check</option>
+                    <option value="Mobile Banking">Mobile Banking</option>
+                    <option value="Credit Card">Credit Card</option>
+                    <option value="Debit Card">Debit Card</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Notes (Optional)
+                </label>
+                <textarea
+                  name="notes"
+                  placeholder="Add any additional notes about the employee..."
+                  value={formData.notes}
+                  onChange={handleChange}
+                  rows="3"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  disabled={loading}
+                />
               </div>
 
               {/* Action Buttons */}
@@ -543,13 +522,13 @@ export default function EmployeePage() {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Name
+                        Name & Details
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Designation
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Salary
+                        Salary & Payment
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Actions
@@ -565,17 +544,35 @@ export default function EmployeePage() {
                             {employee.email && (
                               <div className="text-xs text-gray-500">{employee.email}</div>
                             )}
+                            {employee.phone && (
+                              <div className="text-xs text-gray-500">{employee.phone}</div>
+                            )}
+                            {employee.hireDate && (
+                              <div className="text-xs text-gray-500">
+                                Hired: {formatDate(employee.hireDate)}
+                              </div>
+                            )}
                           </div>
                         </td>
                         <td className="px-4 py-3">
                           <div className="text-gray-900">{employee.designation}</div>
+                          {employee.notes && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              <span className="font-medium">Note:</span> {employee.notes}
+                            </div>
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           <div className="font-medium text-gray-900">
                             ৳{employee.salary.toLocaleString()}
                           </div>
                           <div className="text-xs text-gray-500">
-                            {new Date(employee.dateJoined).toLocaleDateString()}
+                            {employee.paymentMethod && (
+                              <div>Paid via: {employee.paymentMethod}</div>
+                            )}
+                            <div>
+                              {new Date(employee.dateJoined).toLocaleDateString()}
+                            </div>
                           </div>
                         </td>
                         <td className="px-4 py-3">
