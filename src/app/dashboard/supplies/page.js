@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 
 export default function OfficeSupplyPage() {
   const [supplies, setSupplies] = useState([
@@ -19,10 +19,56 @@ export default function OfficeSupplyPage() {
     paymentMethod: ""
   });
 
+  // Filter states
+  const [selectedYear, setSelectedYear] = useState("all");
+  const [selectedMonth, setSelectedMonth] = useState("all");
+  const [years, setYears] = useState([]);
+  const [months, setMonths] = useState([]);
+
   // Fetch stored supplies on component mount
   useEffect(() => {
     fetchStoredSupplies();
   }, []);
+
+  // Update years and months when supplies change
+  useEffect(() => {
+    if (storedSupplies.length > 0) {
+      const uniqueYears = Array.from(
+        new Set(
+          storedSupplies.map(supply => {
+            const date = new Date(supply.date);
+            return date.getFullYear();
+          })
+        )
+      ).sort((a, b) => b - a); // Sort descending (newest first)
+
+      setYears(uniqueYears);
+
+      // If a year is selected, update available months
+      if (selectedYear !== "all") {
+        const yearSupplies = storedSupplies.filter(supply => {
+          const date = new Date(supply.date);
+          return date.getFullYear().toString() === selectedYear;
+        });
+
+        const uniqueMonths = Array.from(
+          new Set(
+            yearSupplies.map(supply => {
+              const date = new Date(supply.date);
+              return date.getMonth() + 1; // Months are 0-indexed in JS
+            })
+          )
+        ).sort((a, b) => a - b);
+
+        setMonths(uniqueMonths);
+      } else {
+        setMonths([]);
+      }
+    } else {
+      setYears([]);
+      setMonths([]);
+    }
+  }, [storedSupplies, selectedYear]);
 
   const fetchStoredSupplies = async () => {
     setLoading(true);
@@ -39,6 +85,27 @@ export default function OfficeSupplyPage() {
       setLoading(false);
     }
   };
+
+  // Filter supplies based on selected year and month
+  const filteredSupplies = useMemo(() => {
+    return storedSupplies.filter(supply => {
+      const date = new Date(supply.date);
+      const year = date.getFullYear().toString();
+      const month = (date.getMonth() + 1).toString(); // Convert to 1-indexed month
+
+      // Apply year filter
+      if (selectedYear !== "all" && year !== selectedYear) {
+        return false;
+      }
+
+      // Apply month filter
+      if (selectedMonth !== "all" && month !== selectedMonth) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [storedSupplies, selectedYear, selectedMonth]);
 
   const updateSupplyField = (index, field, value) => {
     const updatedSupplies = [...supplies];
@@ -223,9 +290,32 @@ export default function OfficeSupplyPage() {
     }).format(amount);
   };
 
-  // Calculate total
+  // Calculate total for filtered supplies
   const calculateTotal = () => {
-    return storedSupplies.reduce((total, supply) => total + supply.price, 0);
+    return filteredSupplies.reduce((total, supply) => total + supply.price, 0);
+  };
+
+  // Month names for display
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+
+  // Handle year filter change
+  const handleYearChange = (e) => {
+    setSelectedYear(e.target.value);
+    setSelectedMonth("all"); // Reset month when year changes
+  };
+
+  // Handle month filter change
+  const handleMonthChange = (e) => {
+    setSelectedMonth(e.target.value);
+  };
+
+  // Reset all filters
+  const resetFilters = () => {
+    setSelectedYear("all");
+    setSelectedMonth("all");
   };
 
   return (
@@ -234,8 +324,6 @@ export default function OfficeSupplyPage() {
         <h2 className="text-2xl font-semibold text-center mb-6">
           Office Supply Expense Management
         </h2>
-
-      
 
         {/* Form Section */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
@@ -366,7 +454,7 @@ export default function OfficeSupplyPage() {
           </form>
         </div>
 
-        {/* Edit Form Section - Now appears inline */}
+        {/* Edit Form Section */}
         {editingId && (
           <div className="bg-white rounded-lg shadow-md p-6 mb-8 border-2 border-blue-300">
             <div className="flex justify-between items-center mb-4">
@@ -381,17 +469,6 @@ export default function OfficeSupplyPage() {
               </button>
             </div>
             
-            {/* {error && (
-              <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md">
-                {error}
-              </div>
-            )}
-            {success && (
-              <div className="mb-4 p-3 bg-green-100 text-green-700 rounded-md">
-                {success}
-              </div>
-            )} */}
-
             <div className="grid grid-cols-12 gap-3 items-center">
               {/* Supply Name */}
               <div className="col-span-4">
@@ -479,7 +556,7 @@ export default function OfficeSupplyPage() {
 
         {/* Stored Supplies Table Section */}
         <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex justify-between items-center mb-6">
             <h3 className="text-lg font-semibold">Stored Office Supplies</h3>
             <button
               onClick={fetchStoredSupplies}
@@ -490,6 +567,96 @@ export default function OfficeSupplyPage() {
             </button>
           </div>
 
+          {/* Filter Section */}
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+            <div className="flex flex-col md:flex-row md:items-center md:space-x-4 space-y-4 md:space-y-0">
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium text-gray-700">Filter by:</span>
+              </div>
+              
+              <div className="flex flex-wrap gap-4">
+                {/* Year Filter */}
+                <div>
+                  <label htmlFor="yearFilter" className="block text-sm font-medium text-gray-700 mb-1">
+                    Year
+                  </label>
+                  <select
+                    id="yearFilter"
+                    value={selectedYear}
+                    onChange={handleYearChange}
+                    className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="all">All Years</option>
+                    {years.map(year => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Month Filter */}
+                <div>
+                  <label htmlFor="monthFilter" className="block text-sm font-medium text-gray-700 mb-1">
+                    Month
+                  </label>
+                  <select
+                    id="monthFilter"
+                    value={selectedMonth}
+                    onChange={handleMonthChange}
+                    disabled={selectedYear === "all"}
+                    className={`w-40 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      selectedYear === "all" ? 'bg-gray-100 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    <option value="all">All Months</option>
+                    {months.map(month => (
+                      <option key={month} value={month}>
+                        {monthNames[month - 1]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Active Filters Display */}
+                {(selectedYear !== "all" || selectedMonth !== "all") && (
+                  <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 bg-blue-50 px-3 py-1 rounded-full">
+                      <span className="text-sm text-blue-700">
+                        {selectedYear !== "all" && `Year: ${selectedYear}`}
+                        {selectedYear !== "all" && selectedMonth !== "all" && ", "}
+                        {selectedMonth !== "all" && `Month: ${monthNames[parseInt(selectedMonth) - 1]}`}
+                      </span>
+                      <button
+                        onClick={() => resetFilters()}
+                        className="text-blue-500 hover:text-blue-700"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Reset Filters Button */}
+                {(selectedYear !== "all" || selectedMonth !== "all") && (
+                  <div className="flex items-end">
+                    <button
+                      onClick={resetFilters}
+                      className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 bg-gray-200 hover:bg-gray-300 rounded-md transition-colors"
+                    >
+                      Reset Filters
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Results Count */}
+              <div className="ml-auto">
+                <span className="text-sm text-gray-600">
+                  Showing {filteredSupplies.length} of {storedSupplies.length} item(s)
+                </span>
+              </div>
+            </div>
+          </div>
+
           {loading ? (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
@@ -498,6 +665,10 @@ export default function OfficeSupplyPage() {
           ) : storedSupplies.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               No supplies stored yet. Add some using the form above.
+            </div>
+          ) : filteredSupplies.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              No supplies found for the selected filters. Try changing your filter criteria.
             </div>
           ) : (
             <>
@@ -523,7 +694,7 @@ export default function OfficeSupplyPage() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {storedSupplies.map((supply) => (
+                    {filteredSupplies.map((supply) => (
                       <tr key={supply._id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-medium text-gray-900">
@@ -533,6 +704,9 @@ export default function OfficeSupplyPage() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900">
                             {formatDate(supply.date)}
+                            <div className="text-xs text-gray-500">
+                              {monthNames[new Date(supply.date).getMonth()]} {new Date(supply.date).getFullYear()}
+                            </div>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -567,7 +741,14 @@ export default function OfficeSupplyPage() {
                   <tfoot className="bg-gray-50">
                     <tr>
                       <td colSpan="2" className="px-6 py-4 text-sm font-semibold text-gray-900">
-                        Total
+                        Filtered Total
+                        {(selectedYear !== "all" || selectedMonth !== "all") && (
+                          <div className="text-xs font-normal text-gray-500 mt-1">
+                            {selectedYear !== "all" && `Year: ${selectedYear}`}
+                            {selectedYear !== "all" && selectedMonth !== "all" && " • "}
+                            {selectedMonth !== "all" && `Month: ${monthNames[parseInt(selectedMonth) - 1]}`}
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-bold text-gray-900">
@@ -575,7 +756,7 @@ export default function OfficeSupplyPage() {
                         </div>
                       </td>
                       <td colSpan="2" className="px-6 py-4 text-sm text-gray-500">
-                        {storedSupplies.length} item(s)
+                        {filteredSupplies.length} item(s)
                       </td>
                     </tr>
                   </tfoot>
@@ -585,17 +766,17 @@ export default function OfficeSupplyPage() {
               {/* Summary Stats */}
               <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-blue-50 p-4 rounded-lg">
-                  <h4 className="text-sm font-medium text-blue-900">Total Items</h4>
-                  <p className="text-2xl font-bold text-blue-700">{storedSupplies.length}</p>
+                  <h4 className="text-sm font-medium text-blue-900">Filtered Items</h4>
+                  <p className="text-2xl font-bold text-blue-700">{filteredSupplies.length}</p>
                 </div>
                 <div className="bg-green-50 p-4 rounded-lg">
-                  <h4 className="text-sm font-medium text-green-900">Total Cost</h4>
+                  <h4 className="text-sm font-medium text-green-900">Filtered Total Cost</h4>
                   <p className="text-2xl font-bold text-green-700">{formatCurrency(calculateTotal())}</p>
                 </div>
                 <div className="bg-purple-50 p-4 rounded-lg">
                   <h4 className="text-sm font-medium text-purple-900">Average per Item</h4>
                   <p className="text-2xl font-bold text-purple-700">
-                    {formatCurrency(storedSupplies.length > 0 ? calculateTotal() / storedSupplies.length : 0)}
+                    {formatCurrency(filteredSupplies.length > 0 ? calculateTotal() / filteredSupplies.length : 0)}
                   </p>
                 </div>
               </div>

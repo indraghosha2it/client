@@ -1,34 +1,86 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 
 export default function OfficeRent() {
   const [formData, setFormData] = useState({
     date: "",
     rent: "",
     status: "paid",
+    paymentMethod: "cash",
+    note: ""
   });
 
   const [rents, setRents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [editingId, setEditingId] = useState(null);
-  // const [summary, setSummary] = useState({
-  //   totalPaid: 0,
-  //   totalUnpaid: 0,
-  //   totalRecords: 0,
-  //   totalAmount: 0
-  // });
+  
+  // Filter states
+  const [filterYear, setFilterYear] = useState("all");
+  const [filterMonth, setFilterMonth] = useState("all");
+  const [years, setYears] = useState([]);
+  const [months, setMonths] = useState([]);
 
   const API_URL = "http://localhost:5001/api";
+
+  // Month names for display
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+
+  // Payment methods
+  const paymentMethods = [
+    "cash", "bank_transfer", "credit_card", "debit_card", "online", "other"
+  ];
 
   // Fetch office rents when page loads
   useEffect(() => {
     fetchOfficeRents();
-    // fetchSummary();
   }, []);
 
-  // Fetch all office rents
+  // Update years and months when rents change
+  useEffect(() => {
+    if (rents.length > 0) {
+      const uniqueYears = Array.from(
+        new Set(
+          rents.map(rent => {
+            const date = new Date(rent.date);
+            return date.getFullYear();
+          })
+        )
+      ).sort((a, b) => b - a);
+
+      setYears(uniqueYears);
+
+      if (filterYear !== "all") {
+        const yearRents = rents.filter(rent => {
+          const date = new Date(rent.date);
+          return date.getFullYear().toString() === filterYear;
+        });
+
+        const uniqueMonths = Array.from(
+          new Set(
+            yearRents.map(rent => {
+              const date = new Date(rent.date);
+              return date.getMonth() + 1;
+            })
+          )
+        ).sort((a, b) => b - a);
+
+        setMonths(uniqueMonths);
+      } else {
+        setMonths([]);
+        setFilterMonth("all");
+      }
+    } else {
+      setYears([]);
+      setMonths([]);
+    }
+  }, [rents, filterYear]);
+
+  // Fetch all office rents and sort by date descending
   const fetchOfficeRents = async () => {
     try {
       setLoading(true);
@@ -41,7 +93,13 @@ export default function OfficeRent() {
       const data = await response.json();
       
       if (data.success) {
-        setRents(data.data);
+        const sortedRents = [...data.data].sort((a, b) => {
+          const dateA = new Date(a.date);
+          const dateB = new Date(b.date);
+          return dateB.getTime() - dateA.getTime();
+        });
+        
+        setRents(sortedRents);
       } else {
         setMessage({ 
           type: 'error', 
@@ -59,33 +117,29 @@ export default function OfficeRent() {
     }
   };
 
-  // Fetch summary
- // Fetch summary
-// const fetchSummary = async () => {
-//   try {
-//     const response = await fetch(`${API_URL}/office-rents/summary`);
-//     const data = await response.json();
+  // Function to check for duplicate month-year entries (both for new and edit)
+  const checkForDuplicateMonthYear = (selectedDate, currentEditingId = null) => {
+    if (!selectedDate) return false;
     
-//     if (!response.ok) {
-//       throw new Error(data.error || `HTTP error! status: ${response.status}`);
-//     }
+    const inputDate = new Date(selectedDate);
+    const inputYear = inputDate.getFullYear();
+    const inputMonth = inputDate.getMonth();
     
-//     if (data.success) {
-//       setSummary(data.data);
-//     } else {
-//       console.error("Failed to fetch summary:", data.error);
-//     }
-//   } catch (error) {
-//     console.error("Error fetching summary:", error);
-//     // Set default summary values if API fails
-//     setSummary({
-//       totalPaid: 0,
-//       totalUnpaid: 0,
-//       totalRecords: 0,
-//       totalAmount: 0
-//     });
-//   }
-// };
+    // Filter out the current record being edited
+    const filteredRents = currentEditingId 
+      ? rents.filter(rent => rent._id !== currentEditingId)
+      : rents;
+    
+    const isDuplicate = filteredRents.some(rent => {
+      const rentDate = new Date(rent.date);
+      const rentYear = rentDate.getFullYear();
+      const rentMonth = rentDate.getMonth();
+      
+      return rentYear === inputYear && rentMonth === inputMonth;
+    });
+    
+    return isDuplicate;
+  };
 
   // Fetch single rent for editing
   const fetchRentForEdit = async (id) => {
@@ -104,9 +158,11 @@ export default function OfficeRent() {
       if (data.success) {
         const rent = data.data;
         setFormData({
-          date: rent.date.split('T')[0], // Format date for input
+          date: rent.date.split('T')[0],
           rent: rent.rent.toString(),
-          status: rent.status
+          status: rent.status,
+          paymentMethod: rent.paymentMethod || "cash",
+          note: rent.note || ""
         });
         setEditingId(id);
         setMessage({ 
@@ -114,7 +170,6 @@ export default function OfficeRent() {
           text: `Editing rent record from ${new Date(rent.date).toLocaleDateString()}` 
         });
         
-        // Scroll to form
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
         setMessage({ 
@@ -134,6 +189,28 @@ export default function OfficeRent() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    
+    // Clear duplicate warning when date changes
+    if (name === 'date') {
+      if (message.text.includes('already exists') || message.text.includes('duplicate')) {
+        setMessage({ type: '', text: '' });
+      }
+      
+      // Check for duplicate when editing
+      if (editingId && value) {
+        const isDuplicate = checkForDuplicateMonthYear(value, editingId);
+        if (isDuplicate) {
+          const inputDate = new Date(value);
+          const monthName = monthNames[inputDate.getMonth()];
+          const year = inputDate.getFullYear();
+          setMessage({ 
+            type: 'error', 
+            text: `❌ Cannot edit: A rent record for ${monthName} ${year} already exists. Please choose a different date.` 
+          });
+        }
+      }
+    }
+    
     setFormData({ ...formData, [name]: value });
   };
 
@@ -143,6 +220,25 @@ export default function OfficeRent() {
     setMessage({ type: '', text: '' });
 
     try {
+      if (!formData.date) {
+        throw new Error("Please select a date");
+      }
+
+      // Check for duplicate month-year (for both new entries and edits)
+      const isDuplicate = checkForDuplicateMonthYear(formData.date, editingId);
+      
+      if (isDuplicate) {
+        const inputDate = new Date(formData.date);
+        const monthName = monthNames[inputDate.getMonth()];
+        const year = inputDate.getFullYear();
+        
+        if (editingId) {
+          throw new Error(`Cannot update: A rent record for ${monthName} ${year} already exists. Please keep the original date or choose a different one.`);
+        } else {
+          throw new Error(`A rent record for ${monthName} ${year} already exists. Please edit the existing record instead.`);
+        }
+      }
+
       const url = editingId 
         ? `${API_URL}/office-rents/${editingId}`
         : `${API_URL}/office-rents`;
@@ -170,18 +266,17 @@ export default function OfficeRent() {
           text: `✅ Office rent ${actionText} successfully!` 
         });
         
-        // Reset form
         setFormData({
           date: "",
           rent: "",
           status: "paid",
+          paymentMethod: "cash",
+          note: ""
         });
         
         setEditingId(null);
         
-        // Refresh data
         fetchOfficeRents();
-        fetchSummary();
         
       } else {
         setMessage({ 
@@ -194,7 +289,7 @@ export default function OfficeRent() {
       console.error("Error submitting form:", error);
       setMessage({ 
         type: 'error', 
-        text: `❌ Failed to save office rent: ${error.message}` 
+        text: `❌ ${error.message}` 
       });
     } finally {
       setLoading(false);
@@ -207,6 +302,8 @@ export default function OfficeRent() {
       date: "",
       rent: "",
       status: "paid",
+      paymentMethod: "cash",
+      note: ""
     });
     setEditingId(null);
     setMessage({ type: '', text: '' });
@@ -230,13 +327,10 @@ export default function OfficeRent() {
           type: 'success', 
           text: `✅ ${data.message}` 
         });
-        // If we're editing this record, cancel edit mode
         if (editingId === id) {
           cancelEdit();
         }
-        // Refresh data
         fetchOfficeRents();
-        fetchSummary();
       } else {
         setMessage({ 
           type: 'error', 
@@ -251,6 +345,63 @@ export default function OfficeRent() {
     }
   };
 
+  // Handle year filter change
+  const handleYearChange = (e) => {
+    setFilterYear(e.target.value);
+    setFilterMonth("all");
+  };
+
+  // Handle month filter change
+  const handleMonthChange = (e) => {
+    setFilterMonth(e.target.value);
+  };
+
+  // Reset all filters
+  const resetFilters = () => {
+    setFilterYear("all");
+    setFilterMonth("all");
+  };
+
+  // Filter rents based on selected year and month and sort by date descending
+  const filteredRents = useMemo(() => {
+    const filtered = rents.filter(rent => {
+      const date = new Date(rent.date);
+      const year = date.getFullYear().toString();
+      const month = (date.getMonth() + 1).toString();
+
+      if (filterYear !== "all" && year !== filterYear) {
+        return false;
+      }
+
+      if (filterMonth !== "all" && month !== filterMonth) {
+        return false;
+      }
+
+      return true;
+    });
+
+    return [...filtered].sort((a, b) => {
+      const dateA = new Date(a.date);
+      const dateB = new Date(b.date);
+      return dateB.getTime() - dateA.getTime();
+    });
+  }, [rents, filterYear, filterMonth]);
+
+  // Calculate total for filtered rents
+  const calculateFilteredTotal = () => {
+    return filteredRents.reduce((total, rent) => total + rent.rent, 0);
+  };
+
+  // Calculate total paid and unpaid for filtered rents
+  const calculateFilteredStats = () => {
+    const paid = filteredRents.filter(rent => rent.status === 'paid')
+      .reduce((total, rent) => total + rent.rent, 0);
+    const unpaid = filteredRents.filter(rent => rent.status === 'unpaid')
+      .reduce((total, rent) => total + rent.rent, 0);
+    
+    return { paid, unpaid };
+  };
+
   // Format date for display
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -260,40 +411,108 @@ export default function OfficeRent() {
     });
   };
 
+  // Format payment method for display
+  const formatPaymentMethod = (method) => {
+    return method
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
+  // Get existing month-year for warning
+  const getExistingMonthsWarning = () => {
+    if (rents.length === 0) return null;
+    
+    const selectedDate = new Date(formData.date);
+    if (isNaN(selectedDate.getTime())) return null;
+    
+    const selectedYear = selectedDate.getFullYear();
+    const selectedMonth = selectedDate.getMonth();
+    
+    const existingMonths = rents
+      .map(rent => {
+        const rentDate = new Date(rent.date);
+        return {
+          year: rentDate.getFullYear(),
+          month: rentDate.getMonth(),
+          monthName: monthNames[rentDate.getMonth()],
+          id: rent._id
+        };
+      })
+      .filter(item => 
+        item.year === selectedYear && item.month === selectedMonth
+      );
+    
+    return existingMonths.length > 0 ? existingMonths[0] : null;
+  };
+
+  // Check if date has duplicate warning for new entries
+  const existingMonthWarning = !editingId ? getExistingMonthsWarning() : null;
+
+  // Check if editing date causes duplicate
+  const editingDuplicateWarning = editingId ? (() => {
+    if (!formData.date) return null;
+    
+    const selectedDate = new Date(formData.date);
+    if (isNaN(selectedDate.getTime())) return null;
+    
+    const selectedYear = selectedDate.getFullYear();
+    const selectedMonth = selectedDate.getMonth();
+    
+    // Find the original record being edited
+    const originalRecord = rents.find(rent => rent._id === editingId);
+    if (!originalRecord) return null;
+    
+    const originalDate = new Date(originalRecord.date);
+    const originalYear = originalDate.getFullYear();
+    const originalMonth = originalDate.getMonth();
+    
+    // Check if date has changed
+    const dateChanged = selectedYear !== originalYear || selectedMonth !== originalMonth;
+    
+    if (!dateChanged) return null;
+    
+    // Check for duplicates excluding current record
+    const isDuplicate = rents.some(rent => {
+      if (rent._id === editingId) return false;
+      
+      const rentDate = new Date(rent.date);
+      const rentYear = rentDate.getFullYear();
+      const rentMonth = rentDate.getMonth();
+      
+      return rentYear === selectedYear && rentMonth === selectedMonth;
+    });
+    
+    return isDuplicate ? {
+      monthName: monthNames[selectedMonth],
+      year: selectedYear
+    } : null;
+  })() : null;
+
   return (
     <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold text-center mb-8 text-gray-800">
           Office Rent Management
         </h1>
 
-        {/* Summary Cards */}
-        {/* <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-xl shadow p-4">
-            <div className="text-sm text-gray-500">Total Records</div>
-            <div className="text-2xl font-bold">{summary.totalRecords}</div>
-          </div>
-          <div className="bg-green-50 rounded-xl shadow p-4">
-            <div className="text-sm text-green-600">Total Paid</div>
-            <div className="text-2xl font-bold text-green-700">
-              ₹{summary.totalPaid.toLocaleString()}
+        {message.text && (
+          <div className={`mb-6 p-4 rounded-lg ${
+            message.type === 'error' ? 'bg-red-50 text-red-800 border-l-4 border-red-500' :
+            message.type === 'success' ? 'bg-green-50 text-green-800 border-l-4 border-green-500' :
+            'bg-blue-50 text-blue-800 border-l-4 border-blue-500'
+          }`}>
+            <div className="flex items-center">
+              <span className="mr-2">
+                {message.type === 'error' ? '❌' :
+                 message.type === 'success' ? '✅' : 'ℹ️'}
+              </span>
+              <span>{message.text}</span>
             </div>
           </div>
-          <div className="bg-red-50 rounded-xl shadow p-4">
-            <div className="text-sm text-red-600">Total Unpaid</div>
-            <div className="text-2xl font-bold text-red-700">
-              ₹{summary.totalUnpaid.toLocaleString()}
-            </div>
-          </div>
-          <div className="bg-blue-50 rounded-xl shadow p-4">
-            <div className="text-sm text-blue-600">Total Amount</div>
-            <div className="text-2xl font-bold text-blue-700">
-              ₹{summary.totalAmount.toLocaleString()}
-            </div>
-          </div>
-        </div> */}
+        )}
 
-        <div className="grid grid-cols-1  gap-8">
+        <div className="grid grid-cols-1 gap-8">
           {/* Left: Rent Form */}
           <div className="bg-white rounded-xl shadow-lg p-6">
             <div className="flex justify-between items-center mb-6">
@@ -307,20 +526,6 @@ export default function OfficeRent() {
               )}
             </div>
 
-            {/* Message Display */}
-            {/* {message.text && (
-              <div className={`mb-4 p-4 rounded-lg ${message.type === 'success' ? 'bg-green-100 border border-green-300 text-green-800' : message.type === 'error' ? 'bg-red-100 border border-red-300 text-red-800' : 'bg-blue-100 border border-blue-300 text-blue-800'}`}>
-                <div className="flex items-center">
-                  <span className="mr-2">
-                    {message.type === 'success' ? '✅' : 
-                     message.type === 'error' ? '❌' : 
-                     '📝'}
-                  </span>
-                  <span>{message.text}</span>
-                </div>
-              </div>
-            )} */}
-
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Date */}
               <div>
@@ -332,10 +537,34 @@ export default function OfficeRent() {
                   name="date"
                   value={formData.date}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    (existingMonthWarning && !editingId) || (editingDuplicateWarning && editingId)
+                      ? 'border-red-500 bg-red-50' 
+                      : 'border-gray-300'
+                  }`}
                   required
                   disabled={loading}
                 />
+                
+                {/* Warning for new entries */}
+                {existingMonthWarning && !editingId && (
+                  <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-800">
+                    ⚠️ <strong>Warning:</strong> A rent record for {existingMonthWarning.monthName} {existingMonthWarning.year} already exists. 
+                    <span> Please edit the existing record instead.</span>
+                  </div>
+                )}
+                
+                {/* Warning for editing duplicates */}
+                {editingDuplicateWarning && editingId && (
+                  <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-800">
+                    ⚠️ <strong>Cannot Update:</strong> A rent record for {editingDuplicateWarning.monthName} {editingDuplicateWarning.year} already exists. 
+                    <span> Please keep the original date or choose a different one.</span>
+                  </div>
+                )}
+                
+                <p className="text-xs text-gray-500 mt-1">
+                  Only one rent record per month is allowed
+                </p>
               </div>
 
               {/* Rent Amount */}
@@ -374,12 +603,59 @@ export default function OfficeRent() {
                 </select>
               </div>
 
+              {/* Payment Method */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Payment Method
+                </label>
+                <select
+                  name="paymentMethod"
+                  value={formData.paymentMethod}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  disabled={loading}
+                >
+                  {paymentMethods.map(method => (
+                    <option key={method} value={method}>
+                      {formatPaymentMethod(method)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Note */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Note (Optional)
+                </label>
+                <textarea
+                  name="note"
+                  placeholder="Add any additional notes about this rent payment"
+                  value={formData.note}
+                  onChange={handleChange}
+                  rows="3"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  disabled={loading}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Optional: Add reference number, transaction ID, or any other details
+                </p>
+              </div>
+
               {/* Action Buttons */}
               <div className="flex space-x-4">
                 <button
                   type="submit"
-                  disabled={loading}
-                  className={`flex-1 py-3 rounded-lg font-medium transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center ${editingId ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+                  disabled={loading || 
+                    (existingMonthWarning && !editingId) || 
+                    (editingDuplicateWarning && editingId)
+                  }
+                  className={`flex-1 py-3 rounded-lg font-medium transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center ${
+                    editingId ? 'bg-green-600 hover:bg-green-700 text-white' : 
+                    (existingMonthWarning && !editingId) || (editingDuplicateWarning && editingId) 
+                      ? 'bg-gray-400 cursor-not-allowed' : 
+                    'bg-blue-600 hover:bg-blue-700 text-white'
+                  }`}
                 >
                   {loading ? (
                     <>
@@ -390,7 +666,13 @@ export default function OfficeRent() {
                       {editingId ? 'Updating...' : 'Saving...'}
                     </>
                   ) : (
-                    editingId ? 'Update Rent Record' : 'Save Rent to Database'
+                    (existingMonthWarning && !editingId) 
+                      ? 'Duplicate Month - Edit Existing' 
+                      : (editingDuplicateWarning && editingId)
+                        ? 'Duplicate - Cannot Update'
+                        : editingId 
+                          ? 'Update Rent Record' 
+                          : 'Save Rent to Database'
                   )}
                 </button>
                 
@@ -412,98 +694,365 @@ export default function OfficeRent() {
           <div className="bg-white rounded-xl shadow-lg p-6">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-gray-800">
-                Rent Records ({rents.length})
+                {filterYear !== "all" || filterMonth !== "all" ? 'Filtered Rent Records' : 'All Rent Records'}
+                <span className="text-lg font-normal text-gray-600 ml-2">
+                  ({filteredRents.length} records)
+                </span>
               </h2>
-              <button
-                onClick={fetchOfficeRents}
-                disabled={loading}
-                className="px-4 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 text-sm font-medium"
-              >
-                Refresh
-              </button>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={fetchOfficeRents}
+                  disabled={loading}
+                  className="px-4 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 text-sm font-medium"
+                >
+                  Refresh
+                </button>
+              </div>
             </div>
+
+            {/* Sort Indicator */}
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center">
+              <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4"></path>
+              </svg>
+              <p className="text-sm text-blue-800">
+                <strong>Sorted by:</strong> Date (Newest to Oldest)
+              </p>
+            </div>
+
+            {/* Filter Section */}
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+              <div className="flex flex-col md:flex-row md:items-center md:space-x-4 space-y-4 md:space-y-0">
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm font-medium text-gray-700">Filter by:</span>
+                </div>
+                
+                <div className="flex flex-wrap gap-4">
+                  {/* Year Filter */}
+                  <div>
+                    <label htmlFor="yearFilter" className="block text-sm font-medium text-gray-700 mb-1">
+                      Year
+                    </label>
+                    <select
+                      id="yearFilter"
+                      value={filterYear}
+                      onChange={handleYearChange}
+                      className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    >
+                      <option value="all">All Years</option>
+                      {years.map(year => (
+                        <option key={year} value={year}>{year}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Month Filter */}
+                  <div>
+                    <label htmlFor="monthFilter" className="block text-sm font-medium text-gray-700 mb-1">
+                      Month
+                    </label>
+                    <select
+                      id="monthFilter"
+                      value={filterMonth}
+                      onChange={handleMonthChange}
+                      disabled={filterYear === "all"}
+                      className={`w-40 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm ${
+                        filterYear === "all" ? 'bg-gray-100 cursor-not-allowed' : ''
+                      }`}
+                    >
+                      <option value="all">All Months</option>
+                      {months.map(month => (
+                        <option key={month} value={month}>
+                          {monthNames[month - 1]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Active Filters Display */}
+                  {(filterYear !== "all" || filterMonth !== "all") && (
+                    <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-2 bg-blue-50 px-3 py-1 rounded-full">
+                        <span className="text-sm text-blue-700">
+                          {filterYear !== "all" && `Year: ${filterYear}`}
+                          {filterYear !== "all" && filterMonth !== "all" && ", "}
+                          {filterMonth !== "all" && `Month: ${monthNames[parseInt(filterMonth) - 1]}`}
+                        </span>
+                        <button
+                          onClick={() => resetFilters()}
+                          className="text-blue-500 hover:text-blue-700 text-sm"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Reset Filters Button */}
+                  {(filterYear !== "all" || filterMonth !== "all") && (
+                    <div className="flex items-end">
+                      <button
+                        onClick={resetFilters}
+                        className="px-3 py-2 text-sm text-gray-600 hover:text-gray-900 bg-gray-200 hover:bg-gray-300 rounded-md transition-colors"
+                      >
+                        Reset Filters
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Results Count */}
+                <div className="ml-auto text-right">
+                  <span className="text-sm text-gray-600">
+                    Showing {filteredRents.length} of {rents.length} record(s)
+                  </span>
+                  {filterYear !== "all" || filterMonth !== "all" ? (
+                    <div className="text-sm font-medium text-green-600 mt-1">
+                      Filtered Total: ₹{calculateFilteredTotal().toLocaleString()}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
+            {/* Duplicate Warning Notice */}
+            {existingMonthWarning && !editingId && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center">
+                  <svg className="w-5 h-5 text-red-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <p className="text-sm text-red-800">
+                    <strong>Duplicate Month Detected:</strong> You cannot add another rent record for {existingMonthWarning.monthName} {existingMonthWarning.year}. 
+                    Please edit the existing record below or choose a different date.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Edit Duplicate Warning Notice */}
+            {editingDuplicateWarning && editingId && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center">
+                  <svg className="w-5 h-5 text-red-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <p className="text-sm text-red-800">
+                    <strong>Cannot Update:</strong> Changing date to {editingDuplicateWarning.monthName} {editingDuplicateWarning.year} would create a duplicate. 
+                    Please keep the original date or choose a different one.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Filtered Stats */}
+            {(filterYear !== "all" || filterMonth !== "all") && filteredRents.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <h4 className="text-sm font-medium text-green-900">Total Paid</h4>
+                  <p className="text-xl font-bold text-green-700">
+                    ₹{calculateFilteredStats().paid.toLocaleString()}
+                  </p>
+                </div>
+                <div className="bg-red-50 p-4 rounded-lg">
+                  <h4 className="text-sm font-medium text-red-900">Total Unpaid</h4>
+                  <p className="text-xl font-bold text-red-700">
+                    ₹{calculateFilteredStats().unpaid.toLocaleString()}
+                  </p>
+                </div>
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h4 className="text-sm font-medium text-blue-900">Filtered Total</h4>
+                  <p className="text-xl font-bold text-blue-700">
+                    ₹{calculateFilteredTotal().toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            )}
 
             {loading ? (
               <div className="text-center py-8">
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                 <p className="mt-2 text-gray-600">Loading rent records...</p>
               </div>
-            ) : rents.length === 0 ? (
+            ) : filteredRents.length === 0 ? (
               <div className="text-center py-8">
                 <div className="text-gray-400 mb-4">
                   <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
                   </svg>
                 </div>
-                <h3 className="text-lg font-medium text-gray-700 mb-2">No rent records yet</h3>
-                <p className="text-gray-500">Add your first rent record using the form on the left!</p>
+                <h3 className="text-lg font-medium text-gray-700 mb-2">
+                  {filterYear === "all" && filterMonth === "all" 
+                    ? "No rent records yet"
+                    : "No rent records found for the selected filters"
+                  }
+                </h3>
+                <p className="text-gray-500">
+                  {filterYear === "all" && filterMonth === "all" 
+                    ? "Add your first rent record using the form!"
+                    : "Try changing your filter criteria."
+                  }
+                </p>
+                {(filterYear !== "all" || filterMonth !== "all") && (
+                  <button
+                    onClick={resetFilters}
+                    className="mt-4 px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                  >
+                    Reset Filters
+                  </button>
+                )}
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Date
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Amount
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Created
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {rents.map((rent) => (
-                      <tr key={rent._id} className={`hover:bg-gray-50 ${editingId === rent._id ? 'bg-blue-50' : ''}`}>
-                        <td className="px-4 py-3">
-                          <div className="font-medium text-gray-900">
-                            {formatDate(rent.date)}
+              <>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Date
+                          <div className="text-xs font-normal text-gray-400 mt-1">Month-Year</div>
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Amount
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Payment Method
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Note
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Created
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {filteredRents.map((rent, index) => {
+                        const rentDate = new Date(rent.date);
+                        const monthYear = `${monthNames[rentDate.getMonth()]} ${rentDate.getFullYear()}`;
+                        
+                        return (
+                          <tr key={rent._id} className={`hover:bg-gray-50 ${editingId === rent._id ? 'bg-blue-50' : ''}`}>
+                            <td className="px-4 py-3">
+                              <div className="font-medium text-gray-900">
+                                {formatDate(rent.date)}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {monthYear}
+                              </div>
+                              {index === 0 && (
+                                <div className="inline-block mt-1 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs font-medium rounded">
+                                  Newest
+                                </div>
+                              )}
+                              {index === filteredRents.length - 1 && filteredRents.length > 1 && (
+                                <div className="inline-block mt-1 px-2 py-0.5 bg-gray-100 text-gray-800 text-xs font-medium rounded">
+                                  Oldest
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="font-medium text-gray-900">
+                                ₹{rent.rent.toLocaleString()}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2 py-1 text-xs font-medium rounded-full ${rent.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                {rent.status === 'paid' ? 'Paid' : 'Unpaid'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                rent.paymentMethod === 'cash' ? 'bg-yellow-100 text-yellow-800' :
+                                rent.paymentMethod === 'bank_transfer' ? 'bg-blue-100 text-blue-800' :
+                                rent.paymentMethod === 'credit_card' ? 'bg-purple-100 text-purple-800' :
+                                rent.paymentMethod === 'debit_card' ? 'bg-indigo-100 text-indigo-800' :
+                                rent.paymentMethod === 'online' ? 'bg-teal-100 text-teal-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {formatPaymentMethod(rent.paymentMethod || 'cash')}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="text-sm text-gray-600 max-w-xs truncate" title={rent.note}>
+                                {rent.note || "-"}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="text-sm text-gray-500">
+                                {formatDate(rent.createdAt)}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex space-x-2">
+                                <button
+                                  onClick={() => fetchRentForEdit(rent._id)}
+                                  className="px-3 py-1 text-sm bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(rent._id)}
+                                  className="px-3 py-1 text-sm bg-red-50 text-red-700 rounded-md hover:bg-red-100"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    {/* Table Footer with Total */}
+                    <tfoot className="bg-gray-50">
+                      <tr>
+                        <td className="px-4 py-3 text-sm font-semibold text-gray-900">
+                          Filtered Total
+                          {(filterYear !== "all" || filterMonth !== "all") && (
+                            <div className="text-xs font-normal text-gray-500 mt-1">
+                              {filterYear !== "all" && `Year: ${filterYear}`}
+                              {filterYear !== "all" && filterMonth !== "all" && " • "}
+                              {filterMonth !== "all" && `Month: ${monthNames[parseInt(filterMonth) - 1]}`}
+                            </div>
+                          )}
+                          <div className="text-xs font-normal text-blue-500 mt-1">
+                            Sorted: Newest to Oldest
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="font-medium text-gray-900">
-                            ₹{rent.rent.toLocaleString()}
+                          <div className="font-bold text-gray-900">
+                            ₹{calculateFilteredTotal().toLocaleString()}
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${rent.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                            {rent.status === 'paid' ? 'Paid' : 'Unpaid'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="text-sm text-gray-500">
-                            {formatDate(rent.createdAt)}
+                          <div className="flex flex-col text-xs text-gray-600">
+                            <span className="font-medium">
+                              {filteredRents.filter(r => r.status === 'paid').length} Paid
+                            </span>
+                            <span className="font-medium">
+                              {filteredRents.filter(r => r.status === 'unpaid').length} Unpaid
+                            </span>
                           </div>
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => fetchRentForEdit(rent._id)}
-                              className="px-3 py-1 text-sm bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDelete(rent._id)}
-                              className="px-3 py-1 text-sm bg-red-50 text-red-700 rounded-md hover:bg-red-100"
-                            >
-                              Delete
-                            </button>
-                          </div>
+                        <td colSpan="4" className="px-4 py-3 text-sm text-gray-500">
+                          {filteredRents.length} record(s)
+                          {filteredRents.length > 0 && (
+                            <div className="text-xs text-gray-400 mt-1">
+                              Showing {Math.min(filteredRents.length, 10)} of {filteredRents.length} records
+                            </div>
+                          )}
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </tfoot>
+                  </table>
+                </div>
+              </>
             )}
 
           </div>

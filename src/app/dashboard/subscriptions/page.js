@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 
 export default function SoftwareSubscriptionPage() {
   const [subscriptions, setSubscriptions] = useState([
@@ -28,10 +28,56 @@ export default function SoftwareSubscriptionPage() {
     note: ""
   });
 
+  // Filter states
+  const [selectedYear, setSelectedYear] = useState("all");
+  const [selectedMonth, setSelectedMonth] = useState("all");
+  const [years, setYears] = useState([]);
+  const [months, setMonths] = useState([]);
+
   // Fetch stored subscriptions on component mount
   useEffect(() => {
     fetchStoredSubscriptions();
   }, []);
+
+  // Update years and months when subscriptions change
+  useEffect(() => {
+    if (storedSubscriptions.length > 0) {
+      const uniqueYears = Array.from(
+        new Set(
+          storedSubscriptions.map(sub => {
+            const date = new Date(sub.date);
+            return date.getFullYear();
+          })
+        )
+      ).sort((a, b) => b - a); // Sort descending (newest first)
+
+      setYears(uniqueYears);
+
+      // If a year is selected, update available months
+      if (selectedYear !== "all") {
+        const yearSubscriptions = storedSubscriptions.filter(sub => {
+          const date = new Date(sub.date);
+          return date.getFullYear().toString() === selectedYear;
+        });
+
+        const uniqueMonths = Array.from(
+          new Set(
+            yearSubscriptions.map(sub => {
+              const date = new Date(sub.date);
+              return date.getMonth() + 1; // Months are 0-indexed in JS
+            })
+          )
+        ).sort((a, b) => a - b);
+
+        setMonths(uniqueMonths);
+      } else {
+        setMonths([]);
+      }
+    } else {
+      setYears([]);
+      setMonths([]);
+    }
+  }, [storedSubscriptions, selectedYear]);
 
   const fetchStoredSubscriptions = async () => {
     setLoading(true);
@@ -51,6 +97,27 @@ export default function SoftwareSubscriptionPage() {
       setLoading(false);
     }
   };
+
+  // Filter subscriptions based on selected year and month
+  const filteredSubscriptions = useMemo(() => {
+    return storedSubscriptions.filter(sub => {
+      const date = new Date(sub.date);
+      const year = date.getFullYear().toString();
+      const month = (date.getMonth() + 1).toString(); // Convert to 1-indexed month
+
+      // Apply year filter
+      if (selectedYear !== "all" && year !== selectedYear) {
+        return false;
+      }
+
+      // Apply month filter
+      if (selectedMonth !== "all" && month !== selectedMonth) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [storedSubscriptions, selectedYear, selectedMonth]);
 
   const updateField = (id, field, value) => {
     setSubscriptions(prev =>
@@ -255,9 +322,32 @@ export default function SoftwareSubscriptionPage() {
     }).format(amount);
   };
 
-  // Calculate total
+  // Calculate total for filtered subscriptions
   const calculateTotal = () => {
-    return storedSubscriptions.reduce((total, sub) => total + sub.amount, 0);
+    return filteredSubscriptions.reduce((total, sub) => total + sub.amount, 0);
+  };
+
+  // Month names for display
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+
+  // Handle year filter change
+  const handleYearChange = (e) => {
+    setSelectedYear(e.target.value);
+    setSelectedMonth("all"); // Reset month when year changes
+  };
+
+  // Handle month filter change
+  const handleMonthChange = (e) => {
+    setSelectedMonth(e.target.value);
+  };
+
+  // Reset all filters
+  const resetFilters = () => {
+    setSelectedYear("all");
+    setSelectedMonth("all");
   };
 
   return (
@@ -266,8 +356,6 @@ export default function SoftwareSubscriptionPage() {
         <h2 className="text-2xl font-semibold text-center mb-6">
           Software Subscriptions Management
         </h2>
-
-     
 
         {/* Form Section */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
@@ -415,7 +503,7 @@ export default function SoftwareSubscriptionPage() {
           </form>
         </div>
 
-              {/* Edit Form Section */}
+        {/* Edit Form Section */}
         {editingId && (
           <div className="bg-white rounded-lg shadow-md p-6 mb-8 border-2 border-blue-300">
             <div className="flex justify-between items-center mb-4">
@@ -542,7 +630,7 @@ export default function SoftwareSubscriptionPage() {
 
         {/* Stored Subscriptions Table Section */}
         <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex justify-between items-center mb-6">
             <h3 className="text-lg font-semibold">Stored Software Subscriptions</h3>
             <button
               onClick={fetchStoredSubscriptions}
@@ -553,6 +641,96 @@ export default function SoftwareSubscriptionPage() {
             </button>
           </div>
 
+          {/* Filter Section */}
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+            <div className="flex flex-col md:flex-row md:items-center md:space-x-4 space-y-4 md:space-y-0">
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium text-gray-700">Filter by:</span>
+              </div>
+              
+              <div className="flex flex-wrap gap-4">
+                {/* Year Filter */}
+                <div>
+                  <label htmlFor="yearFilter" className="block text-sm font-medium text-gray-700 mb-1">
+                    Year
+                  </label>
+                  <select
+                    id="yearFilter"
+                    value={selectedYear}
+                    onChange={handleYearChange}
+                    className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="all">All Years</option>
+                    {years.map(year => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Month Filter */}
+                <div>
+                  <label htmlFor="monthFilter" className="block text-sm font-medium text-gray-700 mb-1">
+                    Month
+                  </label>
+                  <select
+                    id="monthFilter"
+                    value={selectedMonth}
+                    onChange={handleMonthChange}
+                    disabled={selectedYear === "all"}
+                    className={`w-40 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      selectedYear === "all" ? 'bg-gray-100 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    <option value="all">All Months</option>
+                    {months.map(month => (
+                      <option key={month} value={month}>
+                        {monthNames[month - 1]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Active Filters Display */}
+                {(selectedYear !== "all" || selectedMonth !== "all") && (
+                  <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 bg-blue-50 px-3 py-1 rounded-full">
+                      <span className="text-sm text-blue-700">
+                        {selectedYear !== "all" && `Year: ${selectedYear}`}
+                        {selectedYear !== "all" && selectedMonth !== "all" && ", "}
+                        {selectedMonth !== "all" && `Month: ${monthNames[parseInt(selectedMonth) - 1]}`}
+                      </span>
+                      <button
+                        onClick={resetFilters}
+                        className="text-blue-500 hover:text-blue-700"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Reset Filters Button */}
+                {(selectedYear !== "all" || selectedMonth !== "all") && (
+                  <div className="flex items-end">
+                    <button
+                      onClick={resetFilters}
+                      className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 bg-gray-200 hover:bg-gray-300 rounded-md transition-colors"
+                    >
+                      Reset Filters
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Results Count */}
+              <div className="ml-auto">
+                <span className="text-sm text-gray-600">
+                  Showing {filteredSubscriptions.length} of {storedSubscriptions.length} subscription(s)
+                </span>
+              </div>
+            </div>
+          </div>
+
           {loading ? (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
@@ -561,6 +739,10 @@ export default function SoftwareSubscriptionPage() {
           ) : storedSubscriptions.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               No subscriptions stored yet. Add some using the form above.
+            </div>
+          ) : filteredSubscriptions.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              No subscriptions found for the selected filters. Try changing your filter criteria.
             </div>
           ) : (
             <>
@@ -589,7 +771,7 @@ export default function SoftwareSubscriptionPage() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {storedSubscriptions.map((subscription) => (
+                    {filteredSubscriptions.map((subscription) => (
                       <tr key={subscription._id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-medium text-gray-900">
@@ -599,6 +781,9 @@ export default function SoftwareSubscriptionPage() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900">
                             {formatDate(subscription.date)}
+                            <div className="text-xs text-gray-500">
+                              {monthNames[new Date(subscription.date).getMonth()]} {new Date(subscription.date).getFullYear()}
+                            </div>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -638,7 +823,14 @@ export default function SoftwareSubscriptionPage() {
                   <tfoot className="bg-gray-50">
                     <tr>
                       <td colSpan="2" className="px-6 py-4 text-sm font-semibold text-gray-900">
-                        Total
+                        Filtered Total
+                        {(selectedYear !== "all" || selectedMonth !== "all") && (
+                          <div className="text-xs font-normal text-gray-500 mt-1">
+                            {selectedYear !== "all" && `Year: ${selectedYear}`}
+                            {selectedYear !== "all" && selectedMonth !== "all" && " • "}
+                            {selectedMonth !== "all" && `Month: ${monthNames[parseInt(selectedMonth) - 1]}`}
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-bold text-gray-900">
@@ -646,7 +838,7 @@ export default function SoftwareSubscriptionPage() {
                         </div>
                       </td>
                       <td colSpan="3" className="px-6 py-4 text-sm text-gray-500">
-                        {storedSubscriptions.length} subscription(s)
+                        {filteredSubscriptions.length} subscription(s)
                       </td>
                     </tr>
                   </tfoot>
@@ -656,23 +848,23 @@ export default function SoftwareSubscriptionPage() {
               {/* Summary Stats */}
               <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-blue-50 p-4 rounded-lg">
-                  <h4 className="text-sm font-medium text-blue-900">Total Subscriptions</h4>
-                  <p className="text-2xl font-bold text-blue-700">{storedSubscriptions.length}</p>
+                  <h4 className="text-sm font-medium text-blue-900">Filtered Subscriptions</h4>
+                  <p className="text-2xl font-bold text-blue-700">{filteredSubscriptions.length}</p>
                 </div>
                 <div className="bg-green-50 p-4 rounded-lg">
-                  <h4 className="text-sm font-medium text-green-900">Total Cost</h4>
+                  <h4 className="text-sm font-medium text-green-900">Filtered Total Cost</h4>
                   <p className="text-2xl font-bold text-green-700">{formatCurrency(calculateTotal())}</p>
                 </div>
                 <div className="bg-purple-50 p-4 rounded-lg">
                   <h4 className="text-sm font-medium text-purple-900">Average per Subscription</h4>
                   <p className="text-2xl font-bold text-purple-700">
-                    {formatCurrency(storedSubscriptions.length > 0 ? calculateTotal() / storedSubscriptions.length : 0)}
+                    {formatCurrency(filteredSubscriptions.length > 0 ? calculateTotal() / filteredSubscriptions.length : 0)}
                   </p>
                 </div>
                 <div className="bg-yellow-50 p-4 rounded-lg">
                   <h4 className="text-sm font-medium text-yellow-900">Unique Software</h4>
                   <p className="text-2xl font-bold text-yellow-700">
-                    {[...new Set(storedSubscriptions.map(sub => sub.softwareName))].length}
+                    {[...new Set(filteredSubscriptions.map(sub => sub.softwareName))].length}
                   </p>
                 </div>
               </div>
