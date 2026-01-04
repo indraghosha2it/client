@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 export default function EmployeePage() {
   const [formData, setFormData] = useState({
@@ -232,81 +234,82 @@ export default function EmployeePage() {
     setFormData({ ...formData, [name]: value });
   };
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-  setMessage({ type: '', text: '' });
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setMessage({ type: '', text: '' });
 
-  try {
-    console.log("Sending data to backend:", formData);
-    
-    // Use the NORMAL endpoint (not employees-temp-fix)
-    const url = isEditMode 
-      ? `${API_URL}/employees/${editingId}`
-      : `${API_URL}/employees`; // ← NORMAL ENDPOINT
-    
-    const method = isEditMode ? "PUT" : "POST";
-    
-    const response = await fetch(url, {
-      method: method,
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(formData),
-    });
-
-    console.log("Response status:", response.status);
-    
-    const data = await response.json();
-    console.log("Response data:", data);
-
-    if (!response.ok) {
-      throw new Error(data.message || `HTTP error! status: ${response.status}`);
-    }
-
-    if (data.success) {
-      // Success!
-      const actionText = isEditMode ? "updated" : "added";
-      setMessage({ 
-        type: 'success', 
-        text: `✅ Employee ${actionText} successfully!` 
+    try {
+      console.log("Sending data to backend:", formData);
+      
+      // Use the NORMAL endpoint (not employees-temp-fix)
+      const url = isEditMode 
+        ? `${API_URL}/employees/${editingId}`
+        : `${API_URL}/employees`; // ← NORMAL ENDPOINT
+      
+      const method = isEditMode ? "PUT" : "POST";
+      
+      const response = await fetch(url, {
+        method: method,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
       });
+
+      console.log("Response status:", response.status);
       
-      // Reset form and edit mode
-      setFormData({
-        name: "",
-        designation: "",
-        salary: "",
-        workingDays: 26,
-        absentDays: 0,
-        paymentMethod: "Bank Transfer",
-        notes: "",
-        salaryDate: new Date().toISOString().split('T')[0]
-      });
-      
-      setEditingId(null);
-      setIsEditMode(false);
-      
-      // Refresh employee list
-      fetchEmployees();
-      
-    } else {
+      const data = await response.json();
+      console.log("Response data:", data);
+
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      }
+
+      if (data.success) {
+        // Success!
+        const actionText = isEditMode ? "updated" : "added";
+        setMessage({ 
+          type: 'success', 
+          text: `✅ Employee ${actionText} successfully!` 
+        });
+        
+        // Reset form and edit mode
+        setFormData({
+          name: "",
+          designation: "",
+          salary: "",
+          workingDays: 26,
+          absentDays: 0,
+          paymentMethod: "Bank Transfer",
+          notes: "",
+          salaryDate: new Date().toISOString().split('T')[0]
+        });
+        
+        setEditingId(null);
+        setIsEditMode(false);
+        
+        // Refresh employee list
+        fetchEmployees();
+        
+      } else {
+        setMessage({ 
+          type: 'error', 
+          text: `❌ ${data.message || data.error}` 
+        });
+      }
+
+    } catch (error) {
+      console.error("Error submitting form:", error);
       setMessage({ 
         type: 'error', 
-        text: `❌ ${data.message || data.error}` 
+        text: `❌ Failed to save employee: ${error.message}` 
       });
+    } finally {
+      setLoading(false);
     }
+  };
 
-  } catch (error) {
-    console.error("Error submitting form:", error);
-    setMessage({ 
-      type: 'error', 
-      text: `❌ Failed to save employee: ${error.message}` 
-    });
-  } finally {
-    setLoading(false);
-  }
-};
   // Cancel edit mode
   const cancelEdit = () => {
     setFormData({
@@ -403,16 +406,194 @@ const handleSubmit = async (e) => {
     const totalAbsentDays = filteredEmployees.reduce((sum, emp) => sum + emp.absentDays, 0);
     const totalWorkingDays = filteredEmployees.reduce((sum, emp) => sum + emp.workingDays, 0);
     
+    // Calculate total final salary (after deductions)
+    const totalFinalSalary = filteredEmployees.reduce((sum, emp) => {
+      const perDaySalary = emp.salary / emp.workingDays;
+      const deduction = perDaySalary * emp.absentDays;
+      const finalSalary = Math.max(0, emp.salary - deduction);
+      return sum + finalSalary;
+    }, 0);
+    
+    // Calculate total deductions
+    const totalDeductions = filteredEmployees.reduce((sum, emp) => {
+      const perDaySalary = emp.salary / emp.workingDays;
+      const deduction = perDaySalary * emp.absentDays;
+      return sum + deduction;
+    }, 0);
+    
     return {
       totalEmployees: filteredEmployees.length,
       totalSalary: totalSalary.toFixed(2),
-      averageSalary: filteredEmployees.length > 0 ? (totalSalary / filteredEmployees.length).toFixed(2) : 0,
+      totalFinalSalary: totalFinalSalary.toFixed(2),
+      totalDeductions: totalDeductions.toFixed(2),
       totalAbsentDays,
-      totalWorkingDays
+      totalWorkingDays,
+      totalPresentDays: totalWorkingDays - totalAbsentDays
     };
   };
 
   const stats = calculateFilteredStats();
+
+  // Format currency in BDT
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-BD', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
+  };
+
+   // Generate PDF report
+  const generatePDF = () => {
+    if (filteredEmployees.length === 0) {
+      setMessage({ type: 'error', text: 'No employees data to download' });
+      return;
+    }
+
+    try {
+      // Create new PDF document
+      const doc = new jsPDF();
+      
+      // Title
+      const pageWidth = doc.internal.pageSize.getWidth();
+      doc.setFontSize(20);
+      doc.setTextColor(40);
+      doc.setFont("helvetica", "bold");
+      doc.text("Employee Salary Report", pageWidth / 2, 20, { align: "center" });
+      
+      // Company/Report Info
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100);
+      doc.text("Generated on: " + new Date().toLocaleDateString(), 14, 30);
+      
+      // Filter information
+      let filterInfo = "All Employees";
+      if (filterYear !== "all" || filterMonth !== "all") {
+        filterInfo = `Filter: ${filterYear !== "all" ? `Year: ${filterYear}` : ""} ${filterMonth !== "all" ? `Month: ${monthNames[parseInt(filterMonth) - 1]}` : ""}`;
+      }
+      if (filterName.trim() !== "") {
+        filterInfo += ` | Name: ${filterName}`;
+      }
+      if (filterDesignation.trim() !== "") {
+        filterInfo += ` | Designation: ${filterDesignation}`;
+      }
+      doc.text(`Report Type: ${filterInfo}`, 14, 36);
+      doc.text(`Total Records: ${filteredEmployees.length}`, 14, 42);
+      
+      // Prepare table data - Designation under Name in same column
+      const tableData = filteredEmployees.map(employee => {
+        const salaryDetails = calculateSalaryDetails(employee);
+        // Combine name and designation in one cell
+        const nameWithDesignation = `${employee.name}\n${employee.designation}`;
+        
+        return [
+          nameWithDesignation,
+          formatDate(employee.salaryDate),
+          `BDT ${formatCurrency(employee.salary)}`,
+          employee.workingDays,
+          employee.absentDays,
+          `BDT ${salaryDetails.deduction}`,
+          `BDT ${salaryDetails.finalSalary}`,
+          employee.paymentMethod,
+          employee.notes || "-"
+        ];
+      });
+      
+      // Add table using autoTable
+      autoTable(doc, {
+        startY: 50,
+        head: [['Employee Details', 'Salary Date', 'Base Salary', 'Work Days', 'Absent', 'Deduction', 'Final Salary', 'Payment', 'Notes']],
+        body: tableData,
+        headStyles: {
+          fillColor: [41, 128, 185],
+          textColor: 255,
+          fontStyle: 'bold'
+        },
+        styles: {
+          fontSize: 8,
+          cellPadding: 2,
+          lineColor: [0, 0, 0],
+          lineWidth: 0.1
+        },
+        columnStyles: {
+          0: { 
+            cellWidth: 35,
+            cellPadding: { top: 2, right: 2, bottom: 2, left: 2 },
+            valign: 'middle'
+          },
+          1: { cellWidth: 20 },
+          2: { cellWidth: 25 },
+          3: { cellWidth: 15 },
+          4: { cellWidth: 15 },
+          5: { cellWidth: 20 },
+          6: { cellWidth: 25 },
+          7: { cellWidth: 20 },
+          8: { cellWidth: 25 }
+        },
+        // Custom cell renderer to handle multi-line text
+        didParseCell: function(data) {
+          // For the first column (name with designation), allow text wrapping
+          if (data.column.index === 0) {
+            data.cell.styles.cellPadding = { top: 3, right: 2, bottom: 3, left: 2 };
+          }
+        },
+        didDrawPage: function (data) {
+          // Footer
+          const pageCount = doc.internal.getNumberOfPages();
+          doc.setFontSize(10);
+          doc.setTextColor(150);
+          doc.text(
+            `Page ${data.pageNumber} of ${pageCount}`,
+            pageWidth / 2,
+            doc.internal.pageSize.getHeight() - 10,
+            { align: "center" }
+          );
+        }
+      });
+      
+      // Calculate totals
+      const lastY = doc.lastAutoTable.finalY + 10;
+      
+      // Add summary section
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(40);
+      doc.text("SUMMARY", 14, lastY);
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Total Employees: ${stats.totalEmployees}`, 14, lastY + 8);
+      doc.text(`Total Base Salary: BDT ${stats.totalSalary}`, 14, lastY + 16);
+      doc.text(`Total Deductions: BDT ${stats.totalDeductions}`, 14, lastY + 24);
+      doc.text(`Total Payable: BDT ${stats.totalFinalSalary}`, 14, lastY + 32);
+      doc.text(`Total Working Days: ${stats.totalWorkingDays}`, 14, lastY + 40);
+      doc.text(`Total Absent Days: ${stats.totalAbsentDays}`, 14, lastY + 48);
+      
+      // Add generated date at bottom
+      doc.setFontSize(9);
+      doc.setTextColor(100);
+      doc.text(
+        `Report generated on ${new Date().toLocaleString()}`,
+        pageWidth / 2,
+        doc.internal.pageSize.getHeight() - 20,
+        { align: "center" }
+      );
+      
+      // Generate filename with timestamp
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+      const filename = `employee_salary_report_${timestamp}.pdf`;
+      
+      // Save the PDF
+      doc.save(filename);
+      
+      // Show success message
+      setMessage({ type: 'success', text: `PDF downloaded successfully: ${filename}` });
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      setMessage({ type: 'error', text: 'Failed to generate PDF. Please try again.' });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
@@ -505,7 +686,7 @@ const handleSubmit = async (e) => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Monthly Salary *
+                    Monthly Salary (BDT) *
                   </label>
                   <input
                     type="number"
@@ -574,19 +755,19 @@ const handleSubmit = async (e) => {
                     <div className="bg-white p-2 rounded">
                       <div className="text-gray-600">Per Day Salary</div>
                       <div className="font-semibold">
-                        ৳{((parseFloat(formData.salary) || 0) / (parseInt(formData.workingDays) || 26)).toFixed(2)}
+                        BDT {((parseFloat(formData.salary) || 0) / (parseInt(formData.workingDays) || 26)).toFixed(2)}
                       </div>
                     </div>
                     <div className="bg-white p-2 rounded">
                       <div className="text-gray-600">Deduction</div>
                       <div className="font-semibold text-red-600">
-                        -৳{(((parseFloat(formData.salary) || 0) / (parseInt(formData.workingDays) || 26)) * (parseInt(formData.absentDays) || 0)).toFixed(2)}
+                        -BDT {(((parseFloat(formData.salary) || 0) / (parseInt(formData.workingDays) || 26)) * (parseInt(formData.absentDays) || 0)).toFixed(2)}
                       </div>
                     </div>
                     <div className="bg-white p-2 rounded">
                       <div className="text-gray-600">Final Salary</div>
                       <div className="font-semibold text-green-600">
-                        ৳{Math.max(0, (parseFloat(formData.salary) || 0) - 
+                        BDT {Math.max(0, (parseFloat(formData.salary) || 0) - 
                           (((parseFloat(formData.salary) || 0) / (parseInt(formData.workingDays) || 26)) * (parseInt(formData.absentDays) || 0))).toFixed(2)}
                       </div>
                     </div>
@@ -686,10 +867,27 @@ const handleSubmit = async (e) => {
 
           {/* Right: Employee List with Filters */}
           <div className="bg-white rounded-xl shadow-lg p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-800">
-                Employees List ({filteredEmployees.length} / {employees.length})
-              </h2>
+            <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-800">
+                  Employees List ({filteredEmployees.length} / {employees.length})
+                </h2>
+              </div>
+              
+              {/* PDF Download Button - Moved to top */}
+              {filteredEmployees.length > 0 && (
+                <div className="mt-4 md:mt-0">
+                  <button
+                    onClick={generatePDF}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium flex items-center transition duration-200"
+                  >
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    Download PDF 
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Filter Section */}
@@ -825,18 +1023,21 @@ const handleSubmit = async (e) => {
 
               {/* Filter Stats */}
               <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-             
                 <div className="bg-white p-2 rounded border">
-                  <div className="text-gray-600">Total Salary</div>
-                  <div className="font-semibold text-green-600">৳{stats.totalSalary}</div>
+                  <div className="text-gray-600">Employees</div>
+                  <div className="font-semibold">{stats.totalEmployees}</div>
                 </div>
                 <div className="bg-white p-2 rounded border">
-                  <div className="text-gray-600">Avg Salary</div>
-                  <div className="font-semibold">৳{stats.averageSalary}</div>
+                  <div className="text-gray-600">Total Base Salary</div>
+                  <div className="font-semibold">BDT {stats.totalSalary}</div>
                 </div>
                 <div className="bg-white p-2 rounded border">
-                  <div className="text-gray-600">Total Absent Days</div>
-                  <div className="font-semibold text-red-600">{stats.totalAbsentDays}</div>
+                  <div className="text-gray-600">Total Deductions</div>
+                  <div className="font-semibold text-red-600">BDT {stats.totalDeductions}</div>
+                </div>
+                <div className="bg-white p-2 rounded border">
+                  <div className="text-gray-600">Total Payable</div>
+                  <div className="font-semibold text-green-600">BDT {stats.totalFinalSalary}</div>
                 </div>
               </div>
             </div>
@@ -871,109 +1072,159 @@ const handleSubmit = async (e) => {
                 )}
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Employee Details
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Working Days
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Salary Details
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredEmployees.map((employee) => {
-                      const salaryDetails = calculateSalaryDetails(employee);
-                      
-                      return (
-                        <tr key={employee._id} className={`hover:bg-gray-50 ${editingId === employee._id ? 'bg-blue-50' : ''}`}>
-                          <td className="px-4 py-3">
-                            <div className="font-medium text-gray-900">
-                              {employee.name}
-                            </div>
-                            <div className="text-sm text-gray-600">{employee.designation}</div>
-                            {employee.notes && (
-                              <div className="text-xs text-gray-500 mt-1">
-                                <span className="font-medium">Note:</span> {employee.notes}
+              <>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Employee Details
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Working Days
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Salary Details
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {filteredEmployees.map((employee) => {
+                        const salaryDetails = calculateSalaryDetails(employee);
+                        
+                        return (
+                          <tr key={employee._id} className={`hover:bg-gray-50 ${editingId === employee._id ? 'bg-blue-50' : ''}`}>
+                            <td className="px-4 py-3">
+                              <div className="font-medium text-gray-900">
+                                {employee.name}
                               </div>
-                            )}
-                            <div className="text-xs text-gray-500">
-                              Salary Date: {formatDate(employee.salaryDate)}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="space-y-1">
-                              <div className="flex justify-between">
-                                <span className="text-sm text-gray-600">Working Days:</span>
-                                <span className="font-medium">{employee.workingDays}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-sm text-gray-600">Absent Days:</span>
-                                <span className="font-medium text-red-600">{employee.absentDays}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-sm text-gray-600">Present Days:</span>
-                                <span className="font-medium text-green-600">
-                                  {employee.workingDays - employee.absentDays}
-                                </span>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="space-y-2">
-                              <div className="flex justify-between">
-                                <span className="text-sm text-gray-600">Base Salary:</span>
-                                <span className="font-medium">৳{employee.salary.toLocaleString()}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-sm text-gray-600">Per Day:</span>
-                                <span className="text-sm">৳{salaryDetails.perDaySalary}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-sm text-gray-600">Deduction:</span>
-                                <span className="text-sm text-red-600">-৳{salaryDetails.deduction}</span>
-                              </div>
-                              <div className="flex justify-between border-t pt-1">
-                                <span className="text-sm font-medium text-gray-700">Final Salary:</span>
-                                <span className="font-semibold text-green-600">
-                                  ৳{parseFloat(salaryDetails.finalSalary).toLocaleString()}
-                                </span>
-                              </div>
+                              <div className="text-sm text-gray-600">{employee.designation}</div>
+                              {employee.notes && (
+                                <div className="text-xs text-gray-500 mt-1">
+                                  <span className="font-medium">Note:</span> {employee.notes}
+                                </div>
+                              )}
                               <div className="text-xs text-gray-500">
-                                Paid via: {employee.paymentMethod}
+                                Salary Date: {formatDate(employee.salaryDate)}
                               </div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex space-x-2">
-                              <button
-                                onClick={() => fetchEmployeeForEdit(employee._id)}
-                                className="px-3 py-1 text-sm bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => handleDelete(employee._id)}
-                                className="px-3 py-1 text-sm bg-red-50 text-red-700 rounded-md hover:bg-red-100"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="space-y-1">
+                                <div className="flex justify-between">
+                                  <span className="text-sm text-gray-600">Working Days:</span>
+                                  <span className="font-medium">{employee.workingDays}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-sm text-gray-600">Absent Days:</span>
+                                  <span className="font-medium text-red-600">{employee.absentDays}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-sm text-gray-600">Present Days:</span>
+                                  <span className="font-medium text-green-600">
+                                    {employee.workingDays - employee.absentDays}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="space-y-2">
+                                <div className="flex justify-between">
+                                  <span className="text-sm text-gray-600">Base Salary:</span>
+                                  <span className="font-medium">BDT {employee.salary.toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-sm text-gray-600">Per Day:</span>
+                                  <span className="text-sm">BDT {salaryDetails.perDaySalary}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-sm text-gray-600">Deduction:</span>
+                                  <span className="text-sm text-red-600">-BDT {salaryDetails.deduction}</span>
+                                </div>
+                                <div className="flex justify-between border-t pt-1">
+                                  <span className="text-sm font-medium text-gray-700">Final Salary:</span>
+                                  <span className="font-semibold text-green-600">
+                                    BDT {parseFloat(salaryDetails.finalSalary).toLocaleString()}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  Paid via: {employee.paymentMethod}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex space-x-2">
+                                <button
+                                  onClick={() => fetchEmployeeForEdit(employee._id)}
+                                  className="px-3 py-1 text-sm bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(employee._id)}
+                                  className="px-3 py-1 text-sm bg-red-50 text-red-700 rounded-md hover:bg-red-100"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Salary Summary Section */}
+                {filteredEmployees.length > 0 && (
+                  <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-800 mb-2">
+                          Salary Summary for {filterYear !== "all" ? filterYear : "All Years"}
+                          {filterMonth !== "all" ? ` - ${monthNames[parseInt(filterMonth) - 1]}` : ""}
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                          <div>
+                            <div className="text-sm text-gray-600">Total Employees</div>
+                            <div className="text-2xl font-bold">{stats.totalEmployees}</div>
+                          </div>
+                          <div>
+                            <div className="text-sm text-gray-600">Total Base Salary</div>
+                            <div className="text-2xl font-bold">BDT {stats.totalSalary}</div>
+                          </div>
+                          <div>
+                            <div className="text-sm text-gray-600">Total Deductions</div>
+                            <div className="text-2xl font-bold text-red-600">BDT {stats.totalDeductions}</div>
+                          </div>
+                          <div>
+                            <div className="text-sm text-gray-600">Total Payable</div>
+                            <div className="text-3xl font-bold text-green-600">BDT {stats.totalFinalSalary}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Additional Stats */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 pt-4 border-t border-green-200">
+                      <div>
+                        <div className="text-sm text-gray-600">Total Working Days</div>
+                        <div className="font-semibold">{stats.totalWorkingDays}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">Total Present Days</div>
+                        <div className="font-semibold text-green-600">{stats.totalPresentDays}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">Total Absent Days</div>
+                        <div className="font-semibold text-red-600">{stats.totalAbsentDays}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

@@ -34,7 +34,6 @@ export default function DashboardLayout({ children }) {
     { name: 'Software subscriptions', icon: Cloud, href: '/dashboard/subscriptions' },
     { name: 'Transport', icon: Car, href: '/dashboard/transport' },
     { name: 'Miscellaneous expenses', icon: MoreHorizontal, href: '/dashboard/extra' },
-    { name: 'Salary', icon: MoreHorizontal, href: '/dashboard/salaryDashboard' },
     // { name: 'Reports', icon: FileText, href: '/dashboard/reports' },
     // { name: 'Analytics', icon: PieChart, href: '/dashboard/analytics' },
     // { name: 'Categories', icon: DollarSign, href: '/dashboard/categories' },

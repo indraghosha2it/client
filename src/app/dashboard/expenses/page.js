@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 export default function BillsPage() {
   // Form state - Start with empty form, users can add bills as needed
@@ -30,6 +32,7 @@ export default function BillsPage() {
     amount: "",
     date: "",
     paymentMethod: "",
+    note: "", // Added note field
     isFixed: false
   });
 
@@ -236,6 +239,7 @@ export default function BillsPage() {
       amount: "", 
       date: getTodayDate(), 
       paymentMethod: "", 
+      note: "", // Added note field
       isFixed: false 
     };
     setBills([...bills, newBill]);
@@ -266,6 +270,7 @@ export default function BillsPage() {
         amount: "", 
         date: getTodayDate(), 
         paymentMethod: "", 
+        note: "", // Added note field
         isFixed: false 
       }]);
       setDuplicateChecks({});
@@ -354,12 +359,13 @@ export default function BillsPage() {
         return;
       }
       
-      // Format data for API
+      // Format data for API - including note field
       const formattedBills = billsToSave.map(bill => ({
         ...bill,
         amount: parseFloat(bill.amount),
         date: bill.date || new Date().toISOString().split('T')[0],
-        paymentMethod: bill.paymentMethod.toLowerCase().replace(' ', '_')
+        paymentMethod: bill.paymentMethod.toLowerCase().replace(' ', '_'),
+        note: bill.note || "" // Include note field
       }));
       
       // Send to backend
@@ -448,6 +454,7 @@ export default function BillsPage() {
       amount: bill.amount.toString(),
       date: new Date(bill.date).toISOString().split('T')[0],
       paymentMethod: bill.paymentMethod,
+      note: bill.note || "", // Added note field
       isFixed: bill.isFixed || false
     });
     
@@ -467,6 +474,7 @@ export default function BillsPage() {
       amount: "",
       date: "",
       paymentMethod: "",
+      note: "", // Added note field
       isFixed: false
     });
   };
@@ -516,7 +524,8 @@ export default function BillsPage() {
           name: editBillForm.name,
           amount: parseFloat(editBillForm.amount),
           date: editBillForm.date,
-          paymentMethod: editBillForm.paymentMethod.toLowerCase().replace(' ', '_')
+          paymentMethod: editBillForm.paymentMethod.toLowerCase().replace(' ', '_'),
+          note: editBillForm.note || "" // Include note field
         }),
       });
 
@@ -570,6 +579,7 @@ export default function BillsPage() {
           amount: bill.amount.toString(),
           date: new Date(bill.date).toISOString().split('T')[0],
           paymentMethod: bill.paymentMethod,
+          note: bill.note || "", // Added note field
           isFixed: bill.isFixed || false
         }));
         
@@ -621,6 +631,7 @@ export default function BillsPage() {
         amount: "", 
         date: new Date().toISOString().split('T')[0], 
         paymentMethod: "", 
+        note: "", // Added note field
         isFixed: false 
       }
     ]);
@@ -702,12 +713,13 @@ export default function BillsPage() {
         }
       }
       
-      // Format data for API
+      // Format data for API - including note field
       const formattedBills = billsToSave.map(bill => ({
         ...bill,
         amount: parseFloat(bill.amount),
         date: bill.date || new Date().toISOString().split('T')[0],
-        paymentMethod: bill.paymentMethod.toLowerCase().replace(' ', '_')
+        paymentMethod: bill.paymentMethod.toLowerCase().replace(' ', '_'),
+        note: bill.note || "" // Include note field
       }));
       
       // Send update request
@@ -814,13 +826,149 @@ export default function BillsPage() {
     }
   };
 
+  // Generate PDF report
+  const generatePDF = () => {
+    if (filteredBills.length === 0) {
+      setMessage({ 
+        type: 'error', 
+        text: "No bills to download for the selected filters" 
+      });
+      return;
+    }
+
+    try {
+      // Create new PDF document
+      const doc = new jsPDF();
+      
+      // Title
+      const pageWidth = doc.internal.pageSize.getWidth();
+      doc.setFontSize(20);
+      doc.setTextColor(40);
+      doc.setFont("helvetica", "bold");
+      doc.text("Utility Bills Report", pageWidth / 2, 20, { align: "center" });
+      
+      // Report Info
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100);
+      doc.text("Generated on: " + new Date().toLocaleDateString(), 14, 30);
+      
+      // Filter information
+      let filterInfo = "All Bills";
+      if (filterYear !== "all" && filterMonth !== "all") {
+        filterInfo = `${monthNames[parseInt(filterMonth) - 1]} ${filterYear}`;
+      } else if (filterYear !== "all") {
+        filterInfo = `Year: ${filterYear}`;
+      } else if (filterMonth !== "all") {
+        filterInfo = `Month: ${monthNames[parseInt(filterMonth) - 1]}`;
+      }
+      doc.text(`Report Type: ${filterInfo}`, 14, 36);
+      doc.text(`Total Records: ${filteredBills.length}`, 14, 42);
+      
+      // Prepare table data - Using BDT instead of ৳ symbol for compatibility
+      const tableData = filteredBills.map(bill => [
+        bill.name,
+        new Date(bill.date).toLocaleDateString(),
+        `BDT ${bill.amount.toFixed(2)}`,
+        bill.paymentMethod.replace('_', ' ').toUpperCase(),
+        getMonthName(`${new Date(bill.date).getFullYear()}-${String(new Date(bill.date).getMonth() + 1).padStart(2, '0')}`),
+        bill.note || "-" // Include note in PDF
+      ]);
+      
+      // Add table using autoTable
+      autoTable(doc, {
+        startY: 50,
+        head: [['Bill Name', 'Date', 'Amount (BDT)', 'Payment Method', 'Month', 'Note']],
+        body: tableData,
+        headStyles: {
+          fillColor: [41, 128, 185],
+          textColor: 255,
+          fontStyle: 'bold'
+        },
+        styles: {
+          fontSize: 10,
+          cellPadding: 3
+        },
+        columnStyles: {
+          0: { cellWidth: 35 },
+          1: { cellWidth: 25 },
+          2: { cellWidth: 25 },
+          3: { cellWidth: 30 },
+          4: { cellWidth: 30 },
+          5: { cellWidth: 35 }
+        },
+        didDrawPage: function (data) {
+          // Footer
+          const pageCount = doc.internal.getNumberOfPages();
+          doc.setFontSize(10);
+          doc.setTextColor(150);
+          doc.text(
+            `Page ${data.pageNumber} of ${pageCount}`,
+            pageWidth / 2,
+            doc.internal.pageSize.getHeight() - 10,
+            { align: "center" }
+          );
+        }
+      });
+      
+      // Calculate totals
+      const totalAmount = calculateFilteredTotal();
+      const lastY = doc.lastAutoTable.finalY + 10;
+      
+      // Add summary section - Using BDT
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(40);
+      doc.text("SUMMARY", 14, lastY);
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Total Bills: ${filteredBills.length}`, 14, lastY + 8);
+      doc.text(`Total Amount: BDT ${totalAmount.toFixed(2)}`, 14, lastY + 16);
+      
+      // Add generated date at bottom
+      doc.setFontSize(9);
+      doc.setTextColor(100);
+      doc.text(
+        `Report generated on ${new Date().toLocaleString()}`,
+        pageWidth / 2,
+        doc.internal.pageSize.getHeight() - 20,
+        { align: "center" }
+      );
+      
+      // Generate filename with timestamp
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+      const isFilterActive = filterYear !== "all" || filterMonth !== "all";
+      const filterSuffix = isFilterActive ? '_filtered' : '';
+      const filename = `utility_bills_${timestamp}${filterSuffix}.pdf`;
+      
+      // Save the PDF
+      doc.save(filename);
+      
+      // Show success message
+      setMessage({ 
+        type: 'success', 
+        text: `PDF downloaded successfully: ${filename}` 
+      });
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      setMessage({ 
+        type: 'error', 
+        text: 'Failed to generate PDF. Please try again.' 
+      });
+    }
+  };
+
   // Helper functions
   const getTodayDate = () => new Date().toISOString().split("T")[0];
   
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-BD', {
       style: 'currency',
-      currency: 'USD'
+      currency: 'BDT',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
     }).format(amount || 0);
   };
 
@@ -900,6 +1048,7 @@ export default function BillsPage() {
       amount: "",
       date: getTodayDate(),
       paymentMethod: "",
+      note: "", // Added note field
       isFixed: true
     };
     setBills([...bills, newBill]);
@@ -942,32 +1091,29 @@ export default function BillsPage() {
           </div>
         )}
 
-        {/* Stats Cards */}
+        {/* Stats Cards - Modified for BDT and removed average */}
         {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
             <div className="bg-white rounded-lg shadow p-4">
               <div className="text-sm text-gray-500">Total Spent</div>
               <div className="text-2xl font-bold text-blue-600">
                 {formatCurrency(stats.totalAmount)}
               </div>
+              <div className="text-xs text-gray-400 mt-1">BDT</div>
             </div>
             <div className="bg-white rounded-lg shadow p-4">
               <div className="text-sm text-gray-500">Total Bills</div>
               <div className="text-2xl font-bold text-green-600">
                 {stats.totalBills}
               </div>
-            </div>
-            <div className="bg-white rounded-lg shadow p-4">
-              <div className="text-sm text-gray-500">Avg per Bill</div>
-              <div className="text-2xl font-bold text-purple-600">
-                {formatCurrency(stats.avgPerBill)}
-              </div>
+              <div className="text-xs text-gray-400 mt-1">Bills</div>
             </div>
             <div className="bg-white rounded-lg shadow p-4">
               <div className="text-sm text-gray-500">Months Tracked</div>
               <div className="text-2xl font-bold text-orange-600">
                 {billsByMonth.length}
               </div>
+              <div className="text-xs text-gray-400 mt-1">Months</div>
             </div>
           </div>
         )}
@@ -1036,11 +1182,12 @@ export default function BillsPage() {
               <form onSubmit={handleSubmit}>
                 {/* Form Header */}
                 {bills.length > 0 && (
-                  <div className="grid grid-cols-12 gap-3 text-sm font-medium text-gray-500 mb-4">
+                  <div className="grid grid-cols-13 gap-3 text-sm font-medium text-gray-500 mb-4">
                     <div className="col-span-3">Bill Name *</div>
-                    <div className="col-span-2">Amount ($) *</div>
-                    <div className="col-span-3">Date *</div>
-                    <div className="col-span-3">Payment Method *</div>
+                    <div className="col-span-2">Amount (BDT) *</div>
+                    <div className="col-span-2">Date *</div>
+                    <div className="col-span-2">Payment Method *</div>
+                    <div className="col-span-3">Note (Optional)</div>
                     <div className="col-span-1 text-center">Action</div>
                   </div>
                 )}
@@ -1056,7 +1203,7 @@ export default function BillsPage() {
                     const monthYear = `${billDate.getFullYear()}-${String(billDate.getMonth() + 1).padStart(2, '0')}`;
                     
                     return (
-                      <div key={index} className="grid grid-cols-12 gap-3 items-center mb-4">
+                      <div key={index} className="grid grid-cols-13 gap-3 items-center mb-4">
                         {/* Bill Name */}
                         <div className="col-span-3">
                           <input
@@ -1086,7 +1233,7 @@ export default function BillsPage() {
                           )}
                         </div>
 
-                        {/* Amount */}
+                        {/* Amount - Changed to BDT */}
                         <div className="col-span-2">
                           <input
                             type="number"
@@ -1101,7 +1248,7 @@ export default function BillsPage() {
                         </div>
 
                         {/* Date */}
-                        <div className="col-span-3">
+                        <div className="col-span-2">
                           <input
                             type="date"
                             value={bill.date}
@@ -1118,7 +1265,7 @@ export default function BillsPage() {
                         </div>
 
                         {/* Payment Method */}
-                        <div className="col-span-3">
+                        <div className="col-span-2">
                           <select
                             value={bill.paymentMethod}
                             onChange={(e) => updateBillField(index, "paymentMethod", e.target.value)}
@@ -1133,6 +1280,18 @@ export default function BillsPage() {
                             <option value="online">Online Payment</option>
                             <option value="other">Other</option>
                           </select>
+                        </div>
+
+                        {/* Note Field (Optional) */}
+                        <div className="col-span-3">
+                          <input
+                            type="text"
+                            value={bill.note || ""}
+                            onChange={(e) => updateBillField(index, "note", e.target.value)}
+                            className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+                            placeholder="Optional note (e.g., 'Paid late', 'Discount applied')"
+                          />
+                       
                         </div>
 
                         {/* Remove Button */}
@@ -1250,17 +1409,18 @@ export default function BillsPage() {
                 </div>
 
                 {/* Edit Form Header */}
-                <div className="grid grid-cols-12 gap-3 text-sm font-medium text-gray-500 mb-4">
+                <div className="grid grid-cols-13 gap-3 text-sm font-medium text-gray-500 mb-4">
                   <div className="col-span-3">Bill Name</div>
-                  <div className="col-span-2">Amount ($)</div>
-                  <div className="col-span-3">Date</div>
-                  <div className="col-span-3">Payment Method</div>
+                  <div className="col-span-2">Amount (BDT)</div>
+                  <div className="col-span-2">Date</div>
+                  <div className="col-span-2">Payment Method</div>
+                  <div className="col-span-3">Note (Optional)</div>
                   <div className="col-span-1">Action</div>
                 </div>
 
                 {/* Edit Bill Rows */}
                 {editFormData.map((bill, index) => (
-                  <div key={index} className="grid grid-cols-12 gap-3 items-center mb-4">
+                  <div key={index} className="grid grid-cols-13 gap-3 items-center mb-4">
                     {/* Bill Name */}
                     <div className="col-span-3">
                       <input
@@ -1272,7 +1432,7 @@ export default function BillsPage() {
                       />
                     </div>
 
-                    {/* Amount */}
+                    {/* Amount - Changed to BDT */}
                     <div className="col-span-2">
                       <input
                         type="number"
@@ -1286,7 +1446,7 @@ export default function BillsPage() {
                     </div>
 
                     {/* Date */}
-                    <div className="col-span-3">
+                    <div className="col-span-2">
                       <input
                         type="date"
                         value={bill.date}
@@ -1297,7 +1457,7 @@ export default function BillsPage() {
                     </div>
 
                     {/* Payment Method */}
-                    <div className="col-span-3">
+                    <div className="col-span-2">
                       <select
                         value={bill.paymentMethod}
                         onChange={(e) => handleEditChange(index, "paymentMethod", e.target.value)}
@@ -1311,6 +1471,17 @@ export default function BillsPage() {
                         <option value="online">Online Payment</option>
                         <option value="other">Other</option>
                       </select>
+                    </div>
+
+                    {/* Note Field (Optional) */}
+                    <div className="col-span-3">
+                      <input
+                        type="text"
+                        value={bill.note || ""}
+                        onChange={(e) => handleEditChange(index, "note", e.target.value)}
+                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+                        placeholder="Optional note"
+                      />
                     </div>
 
                     {/* Remove Button */}
@@ -1371,10 +1542,10 @@ export default function BillsPage() {
                     />
                   </div>
 
-                  {/* Amount */}
+                  {/* Amount - Changed to BDT */}
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Amount ($) *
+                      Amount (BDT) *
                     </label>
                     <input
                       type="number"
@@ -1389,7 +1560,7 @@ export default function BillsPage() {
                   </div>
 
                   {/* Date */}
-                  <div className="col-span-3">
+                  <div className="col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Date *
                     </label>
@@ -1404,7 +1575,7 @@ export default function BillsPage() {
                   </div>
 
                   {/* Payment Method */}
-                  <div className="col-span-3">
+                  <div className="col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Payment Method *
                     </label>
@@ -1422,6 +1593,20 @@ export default function BillsPage() {
                       <option value="online">Online Payment</option>
                       <option value="other">Other</option>
                     </select>
+                  </div>
+
+                  {/* Note Field (Optional) */}
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Note (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={editBillForm.note || ""}
+                      onChange={(e) => setEditBillForm({...editBillForm, note: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+                      placeholder="Optional note"
+                    />
                   </div>
 
                   {/* Action Buttons */}
@@ -1460,7 +1645,25 @@ export default function BillsPage() {
                   )}
                 </h2>
                 
-                {/* Year and Month Filter */}
+                {/* PDF Download Button */}
+                <div className="flex space-x-2">
+                  {filteredBills.length > 0 && (
+                    <button
+                      onClick={generatePDF}
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors flex items-center"
+                      title="Download PDF Report"
+                    >
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                      </svg>
+                      Download PDF
+                    </button>
+                  )}
+                </div>
+              </div>
+                
+              {/* Year and Month Filter */}
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
                 <div className="flex flex-col md:flex-row md:items-center md:space-x-4 space-y-4 md:space-y-0">
                   <div className="flex flex-wrap gap-4">
                     {/* Year Filter */}
@@ -1537,7 +1740,7 @@ export default function BillsPage() {
                   </div>
 
                   {/* Results Count */}
-                  <div className="text-right">
+                  <div className="ml-auto">
                     <span className="text-sm text-gray-600">
                       Showing {filteredBills.length} of {allBills.length} bill(s)
                     </span>
@@ -1558,7 +1761,7 @@ export default function BillsPage() {
                         Bill Name
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Amount
+                        Amount (BDT)
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Date
@@ -1568,6 +1771,9 @@ export default function BillsPage() {
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Payment Method
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Note
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Actions
@@ -1584,7 +1790,7 @@ export default function BillsPage() {
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             {bill.name}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
                             {formatCurrency(bill.amount)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -1605,6 +1811,11 @@ export default function BillsPage() {
                             }`}>
                               {bill.paymentMethod.replace('_', ' ').toUpperCase()}
                             </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 max-w-xs">
+                            <div className="truncate" title={bill.note || "No note"}>
+                              {bill.note || "-"}
+                            </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             <div className="flex space-x-2">
@@ -1632,12 +1843,12 @@ export default function BillsPage() {
                   <tfoot className="bg-gray-50">
                     <tr>
                       <td colSpan="1" className="px-6 py-4 text-sm font-semibold text-gray-900">
-                        Filtered Total
+                        {filterYear !== "all" || filterMonth !== "all" ? "Filtered Total" : "Total"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
                         {formatCurrency(calculateFilteredTotal())}
                       </td>
-                      <td colSpan="4" className="px-6 py-4 text-sm text-gray-500">
+                      <td colSpan="5" className="px-6 py-4 text-sm text-gray-500">
                         {filterYear !== "all" && filterMonth !== "all" && (
                           <div className="text-xs text-gray-600">
                             Filtered by: Year {filterYear}, Month {monthNames[parseInt(filterMonth) - 1]}
@@ -1666,6 +1877,22 @@ export default function BillsPage() {
                     }
                   </div>
                 )}
+              </div>
+
+              {/* Summary Stats - Removed Average per Bill */}
+              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h4 className="text-sm font-medium text-blue-900">
+                    {filterYear !== "all" || filterMonth !== "all" ? "Filtered Bills" : "Total Bills"}
+                  </h4>
+                  <p className="text-2xl font-bold text-blue-700">{filteredBills.length}</p>
+                </div>
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <h4 className="text-sm font-medium text-green-900">
+                    {filterYear !== "all" || filterMonth !== "all" ? "Filtered Total Cost" : "Total Cost"}
+                  </h4>
+                  <p className="text-2xl font-bold text-green-700">{formatCurrency(calculateFilteredTotal())}</p>
+                </div>
               </div>
             </div>
           </div>

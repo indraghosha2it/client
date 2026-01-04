@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 export default function OfficeSupplyPage() {
   const [supplies, setSupplies] = useState([
@@ -24,6 +26,18 @@ export default function OfficeSupplyPage() {
   const [selectedMonth, setSelectedMonth] = useState("all");
   const [years, setYears] = useState([]);
   const [months, setMonths] = useState([]);
+
+  // Ref for edit form
+  const editFormRef = useRef(null);
+
+  // Month names for display
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+
+  // Currency symbol for Bangladeshi Taka
+  const currencySymbol = "৳";
 
   // Fetch stored supplies on component mount
   useEffect(() => {
@@ -70,13 +84,34 @@ export default function OfficeSupplyPage() {
     }
   }, [storedSupplies, selectedYear]);
 
+  // Scroll to edit form when editingId changes
+  useEffect(() => {
+    if (editingId && editFormRef.current) {
+      setTimeout(() => {
+        editFormRef.current?.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' 
+        });
+      }, 100);
+    }
+  }, [editingId]);
+
   const fetchStoredSupplies = async () => {
     setLoading(true);
+    setError("");
     try {
       const response = await fetch('http://localhost:5001/api/office-supplies');
       const data = await response.json();
       if (data.success) {
-        setStoredSupplies(data.data);
+        // Sort supplies by date in descending order (newest first)
+        const sortedSupplies = [...data.data].sort((a, b) => {
+          const dateA = new Date(a.date);
+          const dateB = new Date(b.date);
+          return dateB.getTime() - dateA.getTime();
+        });
+        setStoredSupplies(sortedSupplies);
+      } else {
+        setError(data.message || 'Failed to load stored supplies');
       }
     } catch (error) {
       console.error('Error fetching supplies:', error);
@@ -106,6 +141,127 @@ export default function OfficeSupplyPage() {
       return true;
     });
   }, [storedSupplies, selectedYear, selectedMonth]);
+
+  // Generate PDF function
+  const generatePDF = () => {
+    if (filteredSupplies.length === 0) {
+      setError("No supplies to download");
+      return;
+    }
+
+    try {
+      // Create new PDF document
+      const doc = new jsPDF();
+      
+      // Title - Use "BDT" instead of the symbol for compatibility
+      const pageWidth = doc.internal.pageSize.getWidth();
+      doc.setFontSize(20);
+      doc.setTextColor(40);
+      doc.setFont("helvetica", "bold");
+      doc.text("Office Supplies Report", pageWidth / 2, 20, { align: "center" });
+      
+      // Company/Report Info
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100);
+      doc.text("Generated on: " + new Date().toLocaleDateString(), 14, 30);
+      
+      // Filter information - Format: "December 2025"
+      let filterInfo = "All Supplies";
+      if (selectedYear !== "all" && selectedMonth !== "all") {
+        filterInfo = `${monthNames[parseInt(selectedMonth) - 1]} ${selectedYear}`;
+      } else if (selectedYear !== "all") {
+        filterInfo = `Year: ${selectedYear}`;
+      } else if (selectedMonth !== "all") {
+        filterInfo = `Month: ${monthNames[parseInt(selectedMonth) - 1]}`;
+      }
+      doc.text(`Report Type: ${filterInfo}`, 14, 36);
+      doc.text(`Total Records: ${filteredSupplies.length}`, 14, 42);
+      
+      // Prepare table data - Use "BDT" instead of ৳ symbol
+      const tableData = filteredSupplies.map(supply => [
+        supply.name,
+        new Date(supply.date).toLocaleDateString(),
+        `BDT ${supply.price.toFixed(2)}`,
+        supply.paymentMethod
+      ]);
+      
+      // Add table using autoTable
+      autoTable(doc, {
+        startY: 50,
+        head: [['Supply Name', 'Date', 'Price (BDT)', 'Payment Method']],
+        body: tableData,
+        headStyles: {
+          fillColor: [41, 128, 185],
+          textColor: 255,
+          fontStyle: 'bold'
+        },
+        styles: {
+          fontSize: 10,
+          cellPadding: 3
+        },
+        columnStyles: {
+          0: { cellWidth: 50 },
+          1: { cellWidth: 35 },
+          2: { cellWidth: 35 },
+          3: { cellWidth: 40 }
+        },
+        didDrawPage: function (data) {
+          // Footer
+          const pageCount = doc.internal.getNumberOfPages();
+          doc.setFontSize(10);
+          doc.setTextColor(150);
+          doc.text(
+            `Page ${data.pageNumber} of ${pageCount}`,
+            pageWidth / 2,
+            doc.internal.pageSize.getHeight() - 10,
+            { align: "center" }
+          );
+        }
+      });
+      
+      // Calculate totals
+      const totalPrice = calculateTotal();
+      const lastY = doc.lastAutoTable.finalY + 10;
+      
+      // Add summary section - Use "BDT" instead of ৳ symbol
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(40);
+      doc.text("SUMMARY", 14, lastY);
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Total Supply Items: ${filteredSupplies.length}`, 14, lastY + 8);
+      doc.text(`Total Cost: BDT ${totalPrice.toFixed(2)}`, 14, lastY + 16);
+      
+      // Add generated date at bottom
+      doc.setFontSize(9);
+      doc.setTextColor(100);
+      doc.text(
+        `Report generated on ${new Date().toLocaleString()}`,
+        pageWidth / 2,
+        doc.internal.pageSize.getHeight() - 20,
+        { align: "center" }
+      );
+      
+      // Generate filename with timestamp
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+      const isFilterActive = selectedYear !== "all" || selectedMonth !== "all";
+      const filterSuffix = isFilterActive ? '_filtered' : '';
+      const filename = `office_supplies_${timestamp}${filterSuffix}.pdf`;
+      
+      // Save the PDF
+      doc.save(filename);
+      
+      // Show success message
+      setSuccess(`PDF downloaded successfully: ${filename}`);
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      setError('Failed to generate PDF. Please try again.');
+    }
+  };
 
   const updateSupplyField = (index, field, value) => {
     const updatedSupplies = [...supplies];
@@ -282,11 +438,13 @@ export default function OfficeSupplyPage() {
     });
   };
 
-  // Format currency
+  // Format currency in Bangladeshi Taka (৳)
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-BD', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'BDT',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
     }).format(amount);
   };
 
@@ -295,11 +453,13 @@ export default function OfficeSupplyPage() {
     return filteredSupplies.reduce((total, supply) => total + supply.price, 0);
   };
 
-  // Month names for display
-  const monthNames = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
-  ];
+  // Calculate form total
+  const calculateFormTotal = () => {
+    return supplies.reduce((total, supply) => {
+      const price = parseFloat(supply.price) || 0;
+      return total + price;
+    }, 0);
+  };
 
   // Handle year filter change
   const handleYearChange = (e) => {
@@ -342,19 +502,107 @@ export default function OfficeSupplyPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Header Row */}
-            <div className="grid grid-cols-12 gap-3 text-sm font-semibold text-gray-600 px-1">
+            {/* Header Row - Desktop only */}
+            <div className="hidden md:grid md:grid-cols-12 gap-3 text-sm font-semibold text-gray-600 px-1">
               <div className="col-span-4">Supply Name</div>
-              <div className="col-span-2">Price</div>
+              <div className="col-span-2">Price (৳)</div>
               <div className="col-span-3">Date</div>
               <div className="col-span-2">Payment Method</div>
               <div className="col-span-1 text-center">Action</div>
             </div>
 
             {supplies.map((supply, index) => (
-              <div key={index} className="grid grid-cols-12 gap-3 items-center">
+              <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-3 items-center p-3 md:p-0 md:border-0 border border-gray-200 rounded-md mb-3 md:mb-0">
+                {/* Mobile View - Vertical Layout */}
+                <div className="md:hidden space-y-3 w-full">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Supply Name *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g., Printer Paper, Pens, etc."
+                        value={supply.name}
+                        onChange={(e) =>
+                          updateSupplyField(index, "name", e.target.value)
+                        }
+                        className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Price (৳) *
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="Price in ৳"
+                        value={supply.price}
+                        onChange={(e) =>
+                          updateSupplyField(index, "price", e.target.value)
+                        }
+                        className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                        step="0.01"
+                        min="0"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Date *
+                      </label>
+                      <input
+                        type="date"
+                        value={supply.date}
+                        max={getTodayDate()}
+                        onChange={(e) =>
+                          updateSupplyField(index, "date", e.target.value)
+                        }
+                        className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Payment Method *
+                      </label>
+                      <select
+                        value={supply.paymentMethod}
+                        onChange={(e) =>
+                          updateSupplyField(index, "paymentMethod", e.target.value)
+                        }
+                        className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      >
+                        <option value="">Select Method</option>
+                        <option value="Cash">Cash</option>
+                        <option value="Bank Transfer">Bank Transfer</option>
+                        <option value="Mobile Banking">Mobile Banking</option>
+                        <option value="Card">Card</option>
+                      </select>
+                    </div>
+                  </div>
+                  
+                  {supplies.length > 1 && (
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={() => removeSupply(index)}
+                        className="w-full py-2 bg-red-100 text-red-600 rounded-md hover:bg-red-200 transition-colors text-sm"
+                      >
+                        Remove This Entry
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Desktop View - Grid Layout */}
                 {/* Supply Name */}
-                <div className="col-span-4">
+                <div className="hidden md:block col-span-4">
                   <input
                     type="text"
                     placeholder="e.g., Printer Paper, Pens, etc."
@@ -362,21 +610,21 @@ export default function OfficeSupplyPage() {
                     onChange={(e) =>
                       updateSupplyField(index, "name", e.target.value)
                     }
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     required
                   />
                 </div>
 
                 {/* Price */}
-                <div className="col-span-2">
+                <div className="hidden md:block col-span-2">
                   <input
                     type="number"
-                    placeholder="0.00"
+                    placeholder="Price in ৳"
                     value={supply.price}
                     onChange={(e) =>
                       updateSupplyField(index, "price", e.target.value)
                     }
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     required
                     step="0.01"
                     min="0"
@@ -384,7 +632,7 @@ export default function OfficeSupplyPage() {
                 </div>
 
                 {/* Date */}
-                <div className="col-span-3">
+                <div className="hidden md:block col-span-3">
                   <input
                     type="date"
                     value={supply.date}
@@ -392,19 +640,19 @@ export default function OfficeSupplyPage() {
                     onChange={(e) =>
                       updateSupplyField(index, "date", e.target.value)
                     }
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     required
                   />
                 </div>
 
                 {/* Payment Method */}
-                <div className="col-span-2">
+                <div className="hidden md:block col-span-2">
                   <select
                     value={supply.paymentMethod}
                     onChange={(e) =>
                       updateSupplyField(index, "paymentMethod", e.target.value)
                     }
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     required
                   >
                     <option value="">Select Method</option>
@@ -416,7 +664,7 @@ export default function OfficeSupplyPage() {
                 </div>
 
                 {/* Remove Button */}
-                <div className="col-span-1">
+                <div className="hidden md:block col-span-1">
                   {supplies.length > 1 && (
                     <button
                       type="button"
@@ -430,11 +678,18 @@ export default function OfficeSupplyPage() {
               </div>
             ))}
 
+            {/* Form Total */}
+            <div className="flex justify-end mb-3">
+              <div className="text-lg font-semibold text-blue-700">
+                Form Total: {formatCurrency(calculateFormTotal())}
+              </div>
+            </div>
+
             {/* Add More Supplies Button */}
             <button
               type="button"
               onClick={addSupply}
-              className="w-full border border-dashed border-blue-500 text-blue-600 py-2 rounded-md hover:bg-blue-50 transition-colors"
+              className="hidden md:block w-full border border-dashed border-blue-500 text-blue-600 py-2 rounded-md hover:bg-blue-50 transition-colors"
             >
               + Add More Supplies
             </button>
@@ -443,7 +698,7 @@ export default function OfficeSupplyPage() {
             <button
               type="submit"
               disabled={saving}
-              className={`w-full py-2 rounded-md transition-colors ${
+              className={`w-full py-3 md:py-2 rounded-md transition-colors text-sm md:text-base ${
                 saving
                   ? 'bg-blue-400 cursor-not-allowed'
                   : 'bg-blue-600 hover:bg-blue-700'
@@ -456,7 +711,10 @@ export default function OfficeSupplyPage() {
 
         {/* Edit Form Section */}
         {editingId && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-8 border-2 border-blue-300">
+          <div 
+            ref={editFormRef}
+            className="bg-white rounded-lg shadow-md p-6 mb-8 border-2 border-blue-300"
+          >
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-blue-700">
                 ✏️ Edit Supply Item
@@ -488,7 +746,7 @@ export default function OfficeSupplyPage() {
               {/* Price */}
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Price *
+                  Price (৳) *
                 </label>
                 <input
                   type="number"
@@ -557,14 +815,41 @@ export default function OfficeSupplyPage() {
         {/* Stored Supplies Table Section */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-semibold">Stored Office Supplies</h3>
-            <button
-              onClick={fetchStoredSupplies}
-              disabled={loading}
-              className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md transition-colors"
-            >
-              {loading ? 'Refreshing...' : 'Refresh'}
-            </button>
+            <div>
+              <h3 className="text-lg font-semibold">Stored Office Supplies</h3>
+              <div className="mt-1 text-sm text-gray-600">
+                {selectedYear !== "all" || selectedMonth !== "all" ? (
+                  <span>
+                    Showing {filteredSupplies.length} of {storedSupplies.length} item(s)
+                  </span>
+                ) : (
+                  <span>Total: {storedSupplies.length} item(s)</span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              {/* PDF Download Button */}
+              {filteredSupplies.length > 0 && (
+                <button
+                  onClick={generatePDF}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors flex items-center"
+                  title="Download PDF Report"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                  </svg>
+                  Download PDF
+                </button>
+              )}
+              
+              <button
+                onClick={fetchStoredSupplies}
+                disabled={loading}
+                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md transition-colors"
+              >
+                {loading ? 'Refreshing...' : 'Refresh'}
+              </button>
+            </div>
           </div>
 
           {/* Filter Section */}
@@ -621,9 +906,12 @@ export default function OfficeSupplyPage() {
                   <div className="flex items-center space-x-2">
                     <div className="flex items-center space-x-2 bg-blue-50 px-3 py-1 rounded-full">
                       <span className="text-sm text-blue-700">
-                        {selectedYear !== "all" && `Year: ${selectedYear}`}
-                        {selectedYear !== "all" && selectedMonth !== "all" && ", "}
-                        {selectedMonth !== "all" && `Month: ${monthNames[parseInt(selectedMonth) - 1]}`}
+                        {selectedYear !== "all" && selectedMonth !== "all" 
+                          ? `${monthNames[parseInt(selectedMonth) - 1]} ${selectedYear}`
+                          : selectedYear !== "all" 
+                          ? `Year: ${selectedYear}`
+                          : `Month: ${monthNames[parseInt(selectedMonth) - 1]}`
+                        }
                       </span>
                       <button
                         onClick={() => resetFilters()}
@@ -683,7 +971,7 @@ export default function OfficeSupplyPage() {
                         Date
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Price
+                        Price (৳)
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Payment Method
@@ -741,12 +1029,15 @@ export default function OfficeSupplyPage() {
                   <tfoot className="bg-gray-50">
                     <tr>
                       <td colSpan="2" className="px-6 py-4 text-sm font-semibold text-gray-900">
-                        Filtered Total
+                        {selectedYear !== "all" || selectedMonth !== "all" ? "Filtered Total" : "Total"}
                         {(selectedYear !== "all" || selectedMonth !== "all") && (
                           <div className="text-xs font-normal text-gray-500 mt-1">
-                            {selectedYear !== "all" && `Year: ${selectedYear}`}
-                            {selectedYear !== "all" && selectedMonth !== "all" && " • "}
-                            {selectedMonth !== "all" && `Month: ${monthNames[parseInt(selectedMonth) - 1]}`}
+                            {selectedYear !== "all" && selectedMonth !== "all" 
+                              ? `${monthNames[parseInt(selectedMonth) - 1]} ${selectedYear}`
+                              : selectedYear !== "all" 
+                              ? `Year: ${selectedYear}`
+                              : `Month: ${monthNames[parseInt(selectedMonth) - 1]}`
+                            }
                           </div>
                         )}
                       </td>
@@ -763,21 +1054,19 @@ export default function OfficeSupplyPage() {
                 </table>
               </div>
               
-              {/* Summary Stats */}
-              <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Summary Stats - Removed Average per Item */}
+              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-blue-50 p-4 rounded-lg">
-                  <h4 className="text-sm font-medium text-blue-900">Filtered Items</h4>
+                  <h4 className="text-sm font-medium text-blue-900">
+                    {selectedYear !== "all" || selectedMonth !== "all" ? "Filtered Items" : "Total Items"}
+                  </h4>
                   <p className="text-2xl font-bold text-blue-700">{filteredSupplies.length}</p>
                 </div>
                 <div className="bg-green-50 p-4 rounded-lg">
-                  <h4 className="text-sm font-medium text-green-900">Filtered Total Cost</h4>
+                  <h4 className="text-sm font-medium text-green-900">
+                    {selectedYear !== "all" || selectedMonth !== "all" ? "Filtered Total Cost" : "Total Cost"}
+                  </h4>
                   <p className="text-2xl font-bold text-green-700">{formatCurrency(calculateTotal())}</p>
-                </div>
-                <div className="bg-purple-50 p-4 rounded-lg">
-                  <h4 className="text-sm font-medium text-purple-900">Average per Item</h4>
-                  <p className="text-2xl font-bold text-purple-700">
-                    {formatCurrency(filteredSupplies.length > 0 ? calculateTotal() / filteredSupplies.length : 0)}
-                  </p>
                 </div>
               </div>
             </>

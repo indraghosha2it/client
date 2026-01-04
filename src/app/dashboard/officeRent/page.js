@@ -1,12 +1,13 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 export default function OfficeRent() {
   const [formData, setFormData] = useState({
     date: "",
     rent: "",
-    status: "paid",
     paymentMethod: "cash",
     note: ""
   });
@@ -117,7 +118,145 @@ export default function OfficeRent() {
     }
   };
 
-  // Function to check for duplicate month-year entries (both for new and edit)
+  // Generate PDF report
+  const generatePDF = () => {
+    if (filteredRents.length === 0) {
+      setMessage({ 
+        type: 'error', 
+        text: "No rent records to download for the selected filters" 
+      });
+      return;
+    }
+
+    try {
+      // Create new PDF document
+      const doc = new jsPDF();
+      
+      // Title
+      const pageWidth = doc.internal.pageSize.getWidth();
+      doc.setFontSize(20);
+      doc.setTextColor(40);
+      doc.setFont("helvetica", "bold");
+      doc.text("Office Rent Report", pageWidth / 2, 20, { align: "center" });
+      
+      // Report Info
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100);
+      doc.text("Generated on: " + new Date().toLocaleDateString(), 14, 30);
+      
+      // Filter information
+      let filterInfo = "All Records";
+      if (filterYear !== "all" && filterMonth !== "all") {
+        filterInfo = `${monthNames[parseInt(filterMonth) - 1]} ${filterYear}`;
+      } else if (filterYear !== "all") {
+        filterInfo = `Year: ${filterYear}`;
+      } else if (filterMonth !== "all") {
+        filterInfo = `Month: ${monthNames[parseInt(filterMonth) - 1]}`;
+      }
+      doc.text(`Report Type: ${filterInfo}`, 14, 36);
+      doc.text(`Total Records: ${filteredRents.length}`, 14, 42);
+      
+      // Prepare table data
+      const tableData = filteredRents.map(rent => {
+        const rentDate = new Date(rent.date);
+        const paymentMethod = rent.paymentMethod || 'cash';
+        const note = rent.note || '-';
+        
+        return [
+          rentDate.toLocaleDateString(),
+          `BDT ${rent.rent.toFixed(2)}`,
+          paymentMethod.replace('_', ' ').toUpperCase(),
+          note,
+          `${monthNames[rentDate.getMonth()]} ${rentDate.getFullYear()}`
+        ];
+      });
+      
+      // Add table using autoTable
+      autoTable(doc, {
+        startY: 50,
+        head: [['Date', 'Amount (BDT)', 'Payment Method', 'Note', 'Month-Year']],
+        body: tableData,
+        headStyles: {
+          fillColor: [41, 128, 185],
+          textColor: 255,
+          fontStyle: 'bold'
+        },
+        styles: {
+          fontSize: 10,
+          cellPadding: 3
+        },
+        columnStyles: {
+          0: { cellWidth: 25 },
+          1: { cellWidth: 25 },
+          2: { cellWidth: 30 },
+          3: { cellWidth: 50 },
+          4: { cellWidth: 30 }
+        },
+        didDrawPage: function (data) {
+          // Footer
+          const pageCount = doc.internal.getNumberOfPages();
+          doc.setFontSize(10);
+          doc.setTextColor(150);
+          doc.text(
+            `Page ${data.pageNumber} of ${pageCount}`,
+            pageWidth / 2,
+            doc.internal.pageSize.getHeight() - 10,
+            { align: "center" }
+          );
+        }
+      });
+      
+      // Calculate totals
+      const totalAmount = calculateFilteredTotal();
+      const lastY = doc.lastAutoTable.finalY + 10;
+      
+      // Add summary section
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(40);
+      doc.text("SUMMARY", 14, lastY);
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Total Records: ${filteredRents.length}`, 14, lastY + 8);
+      doc.text(`Total Amount: BDT ${totalAmount.toFixed(2)}`, 14, lastY + 16);
+      
+      // Add generated date at bottom
+      doc.setFontSize(9);
+      doc.setTextColor(100);
+      doc.text(
+        `Report generated on ${new Date().toLocaleString()}`,
+        pageWidth / 2,
+        doc.internal.pageSize.getHeight() - 20,
+        { align: "center" }
+      );
+      
+      // Generate filename with timestamp
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+      const isFilterActive = filterYear !== "all" || filterMonth !== "all";
+      const filterSuffix = isFilterActive ? '_filtered' : '';
+      const filename = `office_rent_${timestamp}${filterSuffix}.pdf`;
+      
+      // Save the PDF
+      doc.save(filename);
+      
+      // Show success message
+      setMessage({ 
+        type: 'success', 
+        text: `PDF downloaded successfully: ${filename}` 
+      });
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      setMessage({ 
+        type: 'error', 
+        text: `Failed to generate PDF: ${error.message}. Please make sure all rent records have valid data.` 
+      });
+    }
+  };
+
+  // Function to check for duplicate month-year entries
   const checkForDuplicateMonthYear = (selectedDate, currentEditingId = null) => {
     if (!selectedDate) return false;
     
@@ -160,7 +299,6 @@ export default function OfficeRent() {
         setFormData({
           date: rent.date.split('T')[0],
           rent: rent.rent.toString(),
-          status: rent.status,
           paymentMethod: rent.paymentMethod || "cash",
           note: rent.note || ""
         });
@@ -224,7 +362,7 @@ export default function OfficeRent() {
         throw new Error("Please select a date");
       }
 
-      // Check for duplicate month-year (for both new entries and edits)
+      // Check for duplicate month-year
       const isDuplicate = checkForDuplicateMonthYear(formData.date, editingId);
       
       if (isDuplicate) {
@@ -269,7 +407,6 @@ export default function OfficeRent() {
         setFormData({
           date: "",
           rent: "",
-          status: "paid",
           paymentMethod: "cash",
           note: ""
         });
@@ -301,7 +438,6 @@ export default function OfficeRent() {
     setFormData({
       date: "",
       rent: "",
-      status: "paid",
       paymentMethod: "cash",
       note: ""
     });
@@ -392,14 +528,14 @@ export default function OfficeRent() {
     return filteredRents.reduce((total, rent) => total + rent.rent, 0);
   };
 
-  // Calculate total paid and unpaid for filtered rents
-  const calculateFilteredStats = () => {
-    const paid = filteredRents.filter(rent => rent.status === 'paid')
-      .reduce((total, rent) => total + rent.rent, 0);
-    const unpaid = filteredRents.filter(rent => rent.status === 'unpaid')
-      .reduce((total, rent) => total + rent.rent, 0);
-    
-    return { paid, unpaid };
+  // Format currency in Bangladeshi Taka (BDT)
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-BD', {
+      style: 'currency',
+      currency: 'BDT',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
   };
 
   // Format date for display
@@ -570,12 +706,12 @@ export default function OfficeRent() {
               {/* Rent Amount */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Rent Amount *
+                  Rent Amount (BDT) *
                 </label>
                 <input
                   type="number"
                   name="rent"
-                  placeholder="Enter rent amount"
+                  placeholder="Enter rent amount in BDT"
                   value={formData.rent}
                   onChange={handleChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -584,23 +720,6 @@ export default function OfficeRent() {
                   step="0.01"
                   disabled={loading}
                 />
-              </div>
-
-              {/* Payment Status */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Payment Status
-                </label>
-                <select
-                  name="status"
-                  value={formData.status}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={loading}
-                >
-                  <option value="paid">Paid</option>
-                  <option value="unpaid">Unpaid</option>
-                </select>
               </div>
 
               {/* Payment Method */}
@@ -630,7 +749,7 @@ export default function OfficeRent() {
                 </label>
                 <textarea
                   name="note"
-                  placeholder="Add any additional notes about this rent payment"
+                  placeholder="Add any additional notes about this rent payment (e.g., transaction ID, reference number, payment details)"
                   value={formData.note}
                   onChange={handleChange}
                   rows="3"
@@ -700,6 +819,20 @@ export default function OfficeRent() {
                 </span>
               </h2>
               <div className="flex items-center space-x-2">
+                {/* PDF Download Button */}
+                {filteredRents.length > 0 && (
+                  <button
+                    onClick={generatePDF}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors flex items-center"
+                    title="Download PDF Report"
+                  >
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    Download PDF
+                  </button>
+                )}
+                
                 <button
                   onClick={fetchOfficeRents}
                   disabled={loading}
@@ -723,10 +856,6 @@ export default function OfficeRent() {
             {/* Filter Section */}
             <div className="mb-6 p-4 bg-gray-50 rounded-lg">
               <div className="flex flex-col md:flex-row md:items-center md:space-x-4 space-y-4 md:space-y-0">
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm font-medium text-gray-700">Filter by:</span>
-                </div>
-                
                 <div className="flex flex-wrap gap-4">
                   {/* Year Filter */}
                   <div>
@@ -808,7 +937,7 @@ export default function OfficeRent() {
                   </span>
                   {filterYear !== "all" || filterMonth !== "all" ? (
                     <div className="text-sm font-medium text-green-600 mt-1">
-                      Filtered Total: ₹{calculateFilteredTotal().toLocaleString()}
+                      Filtered Total: {formatCurrency(calculateFilteredTotal())}
                     </div>
                   ) : null}
                 </div>
@@ -840,30 +969,6 @@ export default function OfficeRent() {
                   <p className="text-sm text-red-800">
                     <strong>Cannot Update:</strong> Changing date to {editingDuplicateWarning.monthName} {editingDuplicateWarning.year} would create a duplicate. 
                     Please keep the original date or choose a different one.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Filtered Stats */}
-            {(filterYear !== "all" || filterMonth !== "all") && filteredRents.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div className="bg-green-50 p-4 rounded-lg">
-                  <h4 className="text-sm font-medium text-green-900">Total Paid</h4>
-                  <p className="text-xl font-bold text-green-700">
-                    ₹{calculateFilteredStats().paid.toLocaleString()}
-                  </p>
-                </div>
-                <div className="bg-red-50 p-4 rounded-lg">
-                  <h4 className="text-sm font-medium text-red-900">Total Unpaid</h4>
-                  <p className="text-xl font-bold text-red-700">
-                    ₹{calculateFilteredStats().unpaid.toLocaleString()}
-                  </p>
-                </div>
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <h4 className="text-sm font-medium text-blue-900">Filtered Total</h4>
-                  <p className="text-xl font-bold text-blue-700">
-                    ₹{calculateFilteredTotal().toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -913,10 +1018,7 @@ export default function OfficeRent() {
                           <div className="text-xs font-normal text-gray-400 mt-1">Month-Year</div>
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Amount
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Status
+                          Amount (BDT)
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Payment Method
@@ -959,13 +1061,8 @@ export default function OfficeRent() {
                             </td>
                             <td className="px-4 py-3">
                               <div className="font-medium text-gray-900">
-                                ₹{rent.rent.toLocaleString()}
+                                {formatCurrency(rent.rent)}
                               </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className={`px-2 py-1 text-xs font-medium rounded-full ${rent.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                {rent.status === 'paid' ? 'Paid' : 'Unpaid'}
-                              </span>
                             </td>
                             <td className="px-4 py-3">
                               <span className={`px-2 py-1 text-xs font-medium rounded-full ${
@@ -1027,17 +1124,7 @@ export default function OfficeRent() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="font-bold text-gray-900">
-                            ₹{calculateFilteredTotal().toLocaleString()}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-col text-xs text-gray-600">
-                            <span className="font-medium">
-                              {filteredRents.filter(r => r.status === 'paid').length} Paid
-                            </span>
-                            <span className="font-medium">
-                              {filteredRents.filter(r => r.status === 'unpaid').length} Unpaid
-                            </span>
+                            {formatCurrency(calculateFilteredTotal())}
                           </div>
                         </td>
                         <td colSpan="4" className="px-4 py-3 text-sm text-gray-500">
@@ -1051,6 +1138,18 @@ export default function OfficeRent() {
                       </tr>
                     </tfoot>
                   </table>
+                </div>
+
+                {/* Summary Stats */}
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-1 gap-4">
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <h4 className="text-sm font-medium text-blue-900">
+                      {filterYear !== "all" || filterMonth !== "all" ? "Filtered Total" : "Total Amount"}
+                    </h4>
+                    <p className="text-2xl font-bold text-blue-700">
+                      {formatCurrency(calculateFilteredTotal())}
+                    </p>
+                  </div>
                 </div>
               </>
             )}

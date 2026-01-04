@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 export default function TransportExpensePage() {
   const [transports, setTransports] = useState([
@@ -46,6 +48,9 @@ export default function TransportExpensePage() {
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
   ];
+
+  // Currency symbol for Bangladeshi Taka
+  const currencySymbol = "৳";
 
   // Fetch stored transport expenses on component mount
   useEffect(() => {
@@ -166,6 +171,127 @@ export default function TransportExpensePage() {
       return dateB.getTime() - dateA.getTime();
     });
   }, [storedTransports, filterDate, filterYear, filterMonth]);
+
+  // Generate PDF function
+  const generatePDF = () => {
+    if (filteredTransports.length === 0) {
+      setError("No transport expenses to download");
+      return;
+    }
+
+    try {
+      // Create new PDF document
+      const doc = new jsPDF();
+      
+      // Title - Use "BDT" instead of the symbol for compatibility
+      const pageWidth = doc.internal.pageSize.getWidth();
+      doc.setFontSize(20);
+      doc.setTextColor(40);
+      doc.setFont("helvetica", "bold");
+      doc.text("Transport Expenses Report", pageWidth / 2, 20, { align: "center" });
+      
+      // Company/Report Info
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100);
+      doc.text("Generated on: " + new Date().toLocaleDateString(), 14, 30);
+      
+      // Filter information
+      let filterInfo = "All Transport Expenses";
+      if (filterDate) {
+        filterInfo = `Date: ${new Date(filterDate).toLocaleDateString()}`;
+      } else if (filterYear !== "all" || filterMonth !== "all") {
+        filterInfo = `Filter: ${filterYear !== "all" ? `Year: ${filterYear}` : ""} ${filterMonth !== "all" ? `Month: ${monthNames[parseInt(filterMonth) - 1]}` : ""}`;
+      }
+      doc.text(`Report Type: ${filterInfo}`, 14, 36);
+      doc.text(`Total Records: ${filteredTransports.length}`, 14, 42);
+      
+      // Prepare table data - Use "BDT" instead of ৳ symbol
+      const tableData = filteredTransports.map(expense => [
+        expense.transportName,
+        new Date(expense.date).toLocaleDateString(),
+        `BDT ${expense.cost.toFixed(2)}`, // Changed from currencySymbol
+        expense.paymentMethod,
+        expense.note || "-"
+      ]);
+      
+      // Add table using autoTable
+      autoTable(doc, {
+        startY: 50,
+        head: [['Transport Name', 'Date', 'Cost (BDT)', 'Payment Method', 'Note']], // Changed header
+        body: tableData,
+        headStyles: {
+          fillColor: [41, 128, 185],
+          textColor: 255,
+          fontStyle: 'bold'
+        },
+        styles: {
+          fontSize: 10,
+          cellPadding: 3
+        },
+        columnStyles: {
+          0: { cellWidth: 40 },
+          1: { cellWidth: 30 },
+          2: { cellWidth: 30 },
+          3: { cellWidth: 35 },
+          4: { cellWidth: 40 }
+        },
+        didDrawPage: function (data) {
+          // Footer
+          const pageCount = doc.internal.getNumberOfPages();
+          doc.setFontSize(10);
+          doc.setTextColor(150);
+          doc.text(
+            `Page ${data.pageNumber} of ${pageCount}`,
+            pageWidth / 2,
+            doc.internal.pageSize.getHeight() - 10,
+            { align: "center" }
+          );
+        }
+      });
+      
+      // Calculate totals
+      const totalCost = calculateFilteredTotal();
+      const lastY = doc.lastAutoTable.finalY + 10;
+      
+      // Add summary section - Use "BDT" instead of ৳ symbol
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(40);
+      doc.text("SUMMARY", 14, lastY);
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Total Transport Expenses: ${filteredTransports.length}`, 14, lastY + 8);
+      doc.text(`Total Cost: BDT ${totalCost.toFixed(2)}`, 14, lastY + 16); // Changed
+      // doc.text(`Average per Expense: BDT ${(totalCost / filteredTransports.length).toFixed(2)}`, 14, lastY + 24); // Changed
+      
+      // Add generated date at bottom
+      doc.setFontSize(9);
+      doc.setTextColor(100);
+      doc.text(
+        `Report generated on ${new Date().toLocaleString()}`,
+        pageWidth / 2,
+        doc.internal.pageSize.getHeight() - 20,
+        { align: "center" }
+      );
+      
+      // Generate filename with timestamp
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+      const filterSuffix = isFilterActive ? '_filtered' : '';
+      const filename = `transport_expenses_${timestamp}${filterSuffix}.pdf`;
+      
+      // Save the PDF
+      doc.save(filename);
+      
+      // Show success message
+      setSuccess(`PDF downloaded successfully: ${filename}`);
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      setError('Failed to generate PDF. Please try again.');
+    }
+  };
 
   const updateField = (id, field, value) => {
     setTransports(prev =>
@@ -361,11 +487,13 @@ export default function TransportExpensePage() {
     });
   };
 
-  // Format currency
+  // Format currency in Bangladeshi Taka (৳)
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-BD', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'BDT',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
     }).format(amount);
   };
 
@@ -403,6 +531,14 @@ export default function TransportExpensePage() {
   // Toggle mobile filters
   const toggleMobileFilters = () => {
     setShowMobileFilters(!showMobileFilters);
+  };
+
+  // Calculate form total
+  const calculateFormTotal = () => {
+    return transports.reduce((total, expense) => {
+      const amount = parseFloat(expense.cost) || 0;
+      return total + amount;
+    }, 0);
   };
 
   return (
@@ -446,7 +582,7 @@ export default function TransportExpensePage() {
             {/* Header Row - Hidden on mobile, visible on tablet+ */}
             <div className="hidden md:grid md:grid-cols-12 gap-3 text-sm font-semibold text-gray-600 px-1">
               <div className="col-span-3">Transportation Name</div>
-              <div className="col-span-2">Cost</div>
+              <div className="col-span-2">Cost (৳)</div>
               <div className="col-span-2">Date</div>
               <div className="col-span-2">Payment Method</div>
               <div className="col-span-2">Note (Optional)</div>
@@ -478,11 +614,11 @@ export default function TransportExpensePage() {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Cost *
+                        Cost (৳) *
                       </label>
                       <input
                         type="number"
-                        placeholder="Cost"
+                        placeholder="Cost in ৳"
                         value={item.cost}
                         onChange={(e) =>
                           updateField(item.id, "cost", e.target.value)
@@ -579,7 +715,7 @@ export default function TransportExpensePage() {
                 <div className="hidden md:block col-span-2">
                   <input
                     type="number"
-                    placeholder="Cost"
+                    placeholder="Cost in ৳"
                     value={item.cost}
                     onChange={(e) =>
                       updateField(item.id, "cost", e.target.value)
@@ -650,6 +786,13 @@ export default function TransportExpensePage() {
                 </div>
               </div>
             ))}
+
+            {/* Form Total */}
+            <div className="flex justify-end mb-3">
+              <div className="text-lg font-semibold text-blue-700">
+                Form Total: {formatCurrency(calculateFormTotal())}
+              </div>
+            </div>
 
             {/* Add More Button */}
             <div className="flex flex-col md:flex-row gap-3 mt-3">
@@ -736,7 +879,7 @@ export default function TransportExpensePage() {
               {/* Cost */}
               <div className="md:col-span-2 mt-3 md:mt-0">
                 <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">
-                  Cost *
+                  Cost (৳) *
                 </label>
                 <input
                   type="number"
@@ -842,6 +985,20 @@ export default function TransportExpensePage() {
               </div>
             </div>
             <div className="flex items-center space-x-2">
+              {/* PDF Download Button */}
+              {filteredTransports.length > 0 && (
+                <button
+                  onClick={generatePDF}
+                  className="px-3 md:px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors flex items-center text-sm md:text-base"
+                  title="Download PDF Report"
+                >
+                  <svg className="w-4 h-4 md:w-5 md:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                  </svg>
+                  Download PDF
+                </button>
+              )}
+              
               {/* Mobile Filters Toggle */}
               <button
                 onClick={toggleMobileFilters}
@@ -1107,7 +1264,7 @@ export default function TransportExpensePage() {
                         Date
                       </th>
                       <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Cost
+                        Cost (৳)
                       </th>
                       <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Payment Method
@@ -1230,12 +1387,12 @@ export default function TransportExpensePage() {
                   </h4>
                   <p className="text-xl md:text-2xl font-bold text-green-700">{formatCurrency(calculateFilteredTotal())}</p>
                 </div>
-                <div className="bg-purple-50 p-3 md:p-4 rounded-lg">
+                {/* <div className="bg-purple-50 p-3 md:p-4 rounded-lg">
                   <h4 className="text-xs md:text-sm font-medium text-purple-900">Average per Expense</h4>
                   <p className="text-xl md:text-2xl font-bold text-purple-700">
                     {formatCurrency(filteredTransports.length > 0 ? calculateFilteredTotal() / filteredTransports.length : 0)}
                   </p>
-                </div>
+                </div> */}
                 <div className="bg-yellow-50 p-3 md:p-4 rounded-lg">
                   <h4 className="text-xs md:text-sm font-medium text-yellow-900">Transport Types</h4>
                   <p className="text-xl md:text-2xl font-bold text-yellow-700">

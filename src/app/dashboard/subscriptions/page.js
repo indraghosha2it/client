@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 export default function SoftwareSubscriptionPage() {
   const [subscriptions, setSubscriptions] = useState([
@@ -33,6 +35,18 @@ export default function SoftwareSubscriptionPage() {
   const [selectedMonth, setSelectedMonth] = useState("all");
   const [years, setYears] = useState([]);
   const [months, setMonths] = useState([]);
+
+  // Ref for edit form
+  const editFormRef = useRef(null);
+
+  // Month names for display
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+
+  // Currency symbol for Bangladeshi Taka
+  const currencySymbol = "৳";
 
   // Fetch stored subscriptions on component mount
   useEffect(() => {
@@ -79,6 +93,18 @@ export default function SoftwareSubscriptionPage() {
     }
   }, [storedSubscriptions, selectedYear]);
 
+  // Scroll to edit form when editingId changes
+  useEffect(() => {
+    if (editingId && editFormRef.current) {
+      setTimeout(() => {
+        editFormRef.current?.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' 
+        });
+      }, 100);
+    }
+  }, [editingId]);
+
   const fetchStoredSubscriptions = async () => {
     setLoading(true);
     setError("");
@@ -86,7 +112,13 @@ export default function SoftwareSubscriptionPage() {
       const response = await fetch('http://localhost:5001/api/software-subscriptions');
       const data = await response.json();
       if (data.success) {
-        setStoredSubscriptions(data.data);
+        // Sort subscriptions by date in descending order (newest first)
+        const sortedSubscriptions = [...data.data].sort((a, b) => {
+          const dateA = new Date(a.date);
+          const dateB = new Date(b.date);
+          return dateB.getTime() - dateA.getTime();
+        });
+        setStoredSubscriptions(sortedSubscriptions);
       } else {
         setError(data.message || 'Failed to load subscriptions');
       }
@@ -118,6 +150,125 @@ export default function SoftwareSubscriptionPage() {
       return true;
     });
   }, [storedSubscriptions, selectedYear, selectedMonth]);
+
+  // Generate PDF function
+  const generatePDF = () => {
+    if (filteredSubscriptions.length === 0) {
+      setError("No subscriptions to download");
+      return;
+    }
+
+    try {
+      // Create new PDF document
+      const doc = new jsPDF();
+      
+      // Title - Use "BDT" instead of the symbol for compatibility
+      const pageWidth = doc.internal.pageSize.getWidth();
+      doc.setFontSize(20);
+      doc.setTextColor(40);
+      doc.setFont("helvetica", "bold");
+      doc.text("Software Subscriptions Report", pageWidth / 2, 20, { align: "center" });
+      
+      // Company/Report Info
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100);
+      doc.text("Generated on: " + new Date().toLocaleDateString(), 14, 30);
+      
+      // Filter information
+      let filterInfo = "All Subscriptions";
+      if (selectedYear !== "all" || selectedMonth !== "all") {
+        filterInfo = `Filter: ${selectedYear !== "all" ? `Year: ${selectedYear}` : ""} ${selectedMonth !== "all" ? `Month: ${monthNames[parseInt(selectedMonth) - 1]}` : ""}`;
+      }
+      doc.text(`Report Type: ${filterInfo}`, 14, 36);
+      doc.text(`Total Records: ${filteredSubscriptions.length}`, 14, 42);
+      
+      // Prepare table data - Use "BDT" instead of ৳ symbol
+      const tableData = filteredSubscriptions.map(subscription => [
+        subscription.softwareName,
+        new Date(subscription.date).toLocaleDateString(),
+        `BDT ${subscription.amount.toFixed(2)}`,
+        subscription.paymentMethod,
+        subscription.note || "-"
+      ]);
+      
+      // Add table using autoTable
+      autoTable(doc, {
+        startY: 50,
+        head: [['Software Name', 'Date', 'Amount (BDT)', 'Payment Method', 'Note']],
+        body: tableData,
+        headStyles: {
+          fillColor: [41, 128, 185],
+          textColor: 255,
+          fontStyle: 'bold'
+        },
+        styles: {
+          fontSize: 10,
+          cellPadding: 3
+        },
+        columnStyles: {
+          0: { cellWidth: 40 },
+          1: { cellWidth: 30 },
+          2: { cellWidth: 30 },
+          3: { cellWidth: 35 },
+          4: { cellWidth: 40 }
+        },
+        didDrawPage: function (data) {
+          // Footer
+          const pageCount = doc.internal.getNumberOfPages();
+          doc.setFontSize(10);
+          doc.setTextColor(150);
+          doc.text(
+            `Page ${data.pageNumber} of ${pageCount}`,
+            pageWidth / 2,
+            doc.internal.pageSize.getHeight() - 10,
+            { align: "center" }
+          );
+        }
+      });
+      
+      // Calculate totals
+      const totalAmount = calculateTotal();
+      const lastY = doc.lastAutoTable.finalY + 10;
+      
+      // Add summary section - Use "BDT" instead of ৳ symbol
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(40);
+      doc.text("SUMMARY", 14, lastY);
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Total Subscriptions: ${filteredSubscriptions.length}`, 14, lastY + 8);
+      doc.text(`Total Amount: BDT ${totalAmount.toFixed(2)}`, 14, lastY + 16);
+      
+      // Add generated date at bottom
+      doc.setFontSize(9);
+      doc.setTextColor(100);
+      doc.text(
+        `Report generated on ${new Date().toLocaleString()}`,
+        pageWidth / 2,
+        doc.internal.pageSize.getHeight() - 20,
+        { align: "center" }
+      );
+      
+      // Generate filename with timestamp
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+      const isFilterActive = selectedYear !== "all" || selectedMonth !== "all";
+      const filterSuffix = isFilterActive ? '_filtered' : '';
+      const filename = `software_subscriptions_${timestamp}${filterSuffix}.pdf`;
+      
+      // Save the PDF
+      doc.save(filename);
+      
+      // Show success message
+      setSuccess(`PDF downloaded successfully: ${filename}`);
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      setError('Failed to generate PDF. Please try again.');
+    }
+  };
 
   const updateField = (id, field, value) => {
     setSubscriptions(prev =>
@@ -314,11 +465,13 @@ export default function SoftwareSubscriptionPage() {
     });
   };
 
-  // Format currency
+  // Format currency in Bangladeshi Taka (৳)
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-BD', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'BDT',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
     }).format(amount);
   };
 
@@ -326,12 +479,6 @@ export default function SoftwareSubscriptionPage() {
   const calculateTotal = () => {
     return filteredSubscriptions.reduce((total, sub) => total + sub.amount, 0);
   };
-
-  // Month names for display
-  const monthNames = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
-  ];
 
   // Handle year filter change
   const handleYearChange = (e) => {
@@ -348,6 +495,14 @@ export default function SoftwareSubscriptionPage() {
   const resetFilters = () => {
     setSelectedYear("all");
     setSelectedMonth("all");
+  };
+
+  // Calculate form total
+  const calculateFormTotal = () => {
+    return subscriptions.reduce((total, subscription) => {
+      const amount = parseFloat(subscription.amount) || 0;
+      return total + amount;
+    }, 0);
   };
 
   return (
@@ -375,9 +530,9 @@ export default function SoftwareSubscriptionPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Header Row */}
-            <div className="grid grid-cols-12 gap-3 text-sm font-semibold text-gray-600 px-1">
+            <div className="hidden md:grid md:grid-cols-12 gap-3 text-sm font-semibold text-gray-600 px-1">
               <div className="col-span-3">Software Name</div>
-              <div className="col-span-2">Amount</div>
+              <div className="col-span-2">Amount (৳)</div>
               <div className="col-span-2">Date</div>
               <div className="col-span-2">Payment Method</div>
               <div className="col-span-2">Note (Optional)</div>
@@ -387,10 +542,113 @@ export default function SoftwareSubscriptionPage() {
             {subscriptions.map((sub) => (
               <div
                 key={sub.id}
-                className="grid grid-cols-12 gap-3 items-center"
+                className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-3 items-center p-3 md:p-0 md:border-0 border border-gray-200 rounded-md mb-3 md:mb-0"
               >
+                {/* Mobile View - Vertical Layout */}
+                <div className="md:hidden space-y-3 w-full">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Software Name *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Adobe, Figma, Slack"
+                        value={sub.softwareName}
+                        onChange={(e) =>
+                          updateField(sub.id, "softwareName", e.target.value)
+                        }
+                        className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Amount (৳) *
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="Amount in ৳"
+                        value={sub.amount}
+                        onChange={(e) =>
+                          updateField(sub.id, "amount", e.target.value)
+                        }
+                        className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                        min="0"
+                        step="0.01"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Date *
+                      </label>
+                      <input
+                        type="date"
+                        value={sub.date}
+                        max={getTodayDate()}
+                        onChange={(e) =>
+                          updateField(sub.id, "date", e.target.value)
+                        }
+                        className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Payment Method *
+                      </label>
+                      <select
+                        value={sub.paymentMethod}
+                        onChange={(e) =>
+                          updateField(sub.id, "paymentMethod", e.target.value)
+                        }
+                        className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      >
+                        <option value="">Select</option>
+                        <option value="Cash">Cash</option>
+                        <option value="Bank Transfer">Bank Transfer</option>
+                        <option value="Mobile Banking">Mobile Banking</option>
+                        <option value="Card">Card</option>
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Note (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Optional note"
+                      value={sub.note}
+                      onChange={(e) =>
+                        updateField(sub.id, "note", e.target.value)
+                      }
+                      className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  
+                  {subscriptions.length > 1 && (
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={() => removeSubscription(sub.id)}
+                        className="w-full py-2 bg-red-100 text-red-600 rounded-md hover:bg-red-200 transition-colors text-sm"
+                      >
+                        Remove This Entry
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Desktop View - Grid Layout */}
                 {/* Software Name */}
-                <div className="col-span-3">
+                <div className="hidden md:block col-span-3">
                   <input
                     type="text"
                     placeholder="e.g. Adobe, Figma, Slack"
@@ -398,21 +656,21 @@ export default function SoftwareSubscriptionPage() {
                     onChange={(e) =>
                       updateField(sub.id, "softwareName", e.target.value)
                     }
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     required
                   />
                 </div>
 
                 {/* Amount */}
-                <div className="col-span-2">
+                <div className="hidden md:block col-span-2">
                   <input
                     type="number"
-                    placeholder="Amount"
+                    placeholder="Amount in ৳"
                     value={sub.amount}
                     onChange={(e) =>
                       updateField(sub.id, "amount", e.target.value)
                     }
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     required
                     min="0"
                     step="0.01"
@@ -420,7 +678,7 @@ export default function SoftwareSubscriptionPage() {
                 </div>
 
                 {/* Date */}
-                <div className="col-span-2">
+                <div className="hidden md:block col-span-2">
                   <input
                     type="date"
                     value={sub.date}
@@ -428,19 +686,19 @@ export default function SoftwareSubscriptionPage() {
                     onChange={(e) =>
                       updateField(sub.id, "date", e.target.value)
                     }
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     required
                   />
                 </div>
 
                 {/* Payment Method */}
-                <div className="col-span-2">
+                <div className="hidden md:block col-span-2">
                   <select
                     value={sub.paymentMethod}
                     onChange={(e) =>
                       updateField(sub.id, "paymentMethod", e.target.value)
                     }
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     required
                   >
                     <option value="">Select</option>
@@ -452,7 +710,7 @@ export default function SoftwareSubscriptionPage() {
                 </div>
 
                 {/* Note (Optional) */}
-                <div className="col-span-2">
+                <div className="hidden md:block col-span-2">
                   <input
                     type="text"
                     placeholder="Optional note"
@@ -460,12 +718,12 @@ export default function SoftwareSubscriptionPage() {
                     onChange={(e) =>
                       updateField(sub.id, "note", e.target.value)
                     }
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                   />
                 </div>
 
-                {/* Remove */}
-                <div className="col-span-1">
+                {/* Remove - Desktop */}
+                <div className="hidden md:block col-span-1">
                   {subscriptions.length > 1 && (
                     <button
                       type="button"
@@ -479,11 +737,18 @@ export default function SoftwareSubscriptionPage() {
               </div>
             ))}
 
+            {/* Form Total */}
+            <div className="flex justify-end mb-3">
+              <div className="text-lg font-semibold text-blue-700">
+                Form Total: {formatCurrency(calculateFormTotal())}
+              </div>
+            </div>
+
             {/* Add More */}
             <button
               type="button"
               onClick={addSubscription}
-              className="w-full border border-dashed border-blue-500 text-blue-600 py-2 rounded-md hover:bg-blue-50 transition-colors"
+              className="hidden md:block w-full border border-dashed border-blue-500 text-blue-600 py-2 rounded-md hover:bg-blue-50 transition-colors"
             >
               + Add More Subscriptions
             </button>
@@ -492,7 +757,7 @@ export default function SoftwareSubscriptionPage() {
             <button
               type="submit"
               disabled={saving}
-              className={`w-full py-2 rounded-md transition-colors ${
+              className={`w-full py-3 md:py-2 rounded-md transition-colors text-sm md:text-base ${
                 saving
                   ? 'bg-blue-400 cursor-not-allowed'
                   : 'bg-blue-600 hover:bg-blue-700'
@@ -505,7 +770,10 @@ export default function SoftwareSubscriptionPage() {
 
         {/* Edit Form Section */}
         {editingId && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-8 border-2 border-blue-300">
+          <div 
+            ref={editFormRef} 
+            className="bg-white rounded-lg shadow-md p-6 mb-8 border-2 border-blue-300"
+          >
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-blue-700">
                 ✏️ Edit Software Subscription
@@ -548,7 +816,7 @@ export default function SoftwareSubscriptionPage() {
               {/* Amount */}
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Amount *
+                  Amount (৳) *
                 </label>
                 <input
                   type="number"
@@ -631,14 +899,41 @@ export default function SoftwareSubscriptionPage() {
         {/* Stored Subscriptions Table Section */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-semibold">Stored Software Subscriptions</h3>
-            <button
-              onClick={fetchStoredSubscriptions}
-              disabled={loading}
-              className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md transition-colors"
-            >
-              {loading ? 'Refreshing...' : 'Refresh'}
-            </button>
+            <div>
+              <h3 className="text-lg font-semibold">Stored Software Subscriptions</h3>
+              <div className="mt-1 text-sm text-gray-600">
+                {selectedYear !== "all" || selectedMonth !== "all" ? (
+                  <span>
+                    Showing {filteredSubscriptions.length} of {storedSubscriptions.length} subscription(s)
+                  </span>
+                ) : (
+                  <span>Total: {storedSubscriptions.length} subscription(s)</span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              {/* PDF Download Button */}
+              {filteredSubscriptions.length > 0 && (
+                <button
+                  onClick={generatePDF}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors flex items-center"
+                  title="Download PDF Report"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                  </svg>
+                  Download PDF
+                </button>
+              )}
+              
+              <button
+                onClick={fetchStoredSubscriptions}
+                disabled={loading}
+                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md transition-colors"
+              >
+                {loading ? 'Refreshing...' : 'Refresh'}
+              </button>
+            </div>
           </div>
 
           {/* Filter Section */}
@@ -757,7 +1052,7 @@ export default function SoftwareSubscriptionPage() {
                         Date
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Amount
+                        Amount (৳)
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Payment Method
@@ -823,7 +1118,7 @@ export default function SoftwareSubscriptionPage() {
                   <tfoot className="bg-gray-50">
                     <tr>
                       <td colSpan="2" className="px-6 py-4 text-sm font-semibold text-gray-900">
-                        Filtered Total
+                        {selectedYear !== "all" || selectedMonth !== "all" ? "Filtered Total" : "Total"}
                         {(selectedYear !== "all" || selectedMonth !== "all") && (
                           <div className="text-xs font-normal text-gray-500 mt-1">
                             {selectedYear !== "all" && `Year: ${selectedYear}`}
@@ -846,20 +1141,19 @@ export default function SoftwareSubscriptionPage() {
               </div>
               
               {/* Summary Stats */}
-              <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Removed Average per Subscription stat */}
                 <div className="bg-blue-50 p-4 rounded-lg">
-                  <h4 className="text-sm font-medium text-blue-900">Filtered Subscriptions</h4>
+                  <h4 className="text-sm font-medium text-blue-900">
+                    {selectedYear !== "all" || selectedMonth !== "all" ? "Filtered Subscriptions" : "Total Subscriptions"}
+                  </h4>
                   <p className="text-2xl font-bold text-blue-700">{filteredSubscriptions.length}</p>
                 </div>
                 <div className="bg-green-50 p-4 rounded-lg">
-                  <h4 className="text-sm font-medium text-green-900">Filtered Total Cost</h4>
+                  <h4 className="text-sm font-medium text-green-900">
+                    {selectedYear !== "all" || selectedMonth !== "all" ? "Filtered Total Cost" : "Total Cost"}
+                  </h4>
                   <p className="text-2xl font-bold text-green-700">{formatCurrency(calculateTotal())}</p>
-                </div>
-                <div className="bg-purple-50 p-4 rounded-lg">
-                  <h4 className="text-sm font-medium text-purple-900">Average per Subscription</h4>
-                  <p className="text-2xl font-bold text-purple-700">
-                    {formatCurrency(filteredSubscriptions.length > 0 ? calculateTotal() / filteredSubscriptions.length : 0)}
-                  </p>
                 </div>
                 <div className="bg-yellow-50 p-4 rounded-lg">
                   <h4 className="text-sm font-medium text-yellow-900">Unique Software</h4>
