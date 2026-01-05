@@ -649,8 +649,8 @@ const resp = await fetch("/api/signup", {
     "Content-Type": "application/json"
   },
   // Add mode and credentials
-  mode: 'cors',
-  credentials: 'same-origin'
+  // mode: 'cors',
+  // credentials: 'same-origin'
 });
       
       console.log('Response status:', resp.status);
