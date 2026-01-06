@@ -12,7 +12,7 @@ export default function BillsTable() {
   const [activeView, setActiveView] = useState("monthly"); // "monthly" or "detailed"
 
   // API base URL
-  const API_URL = "http://localhost:5001/api";
+  const API_URL = "http://localhost:5004/api";
 
   // Fetch data
   const fetchData = async () => {

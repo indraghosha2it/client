@@ -1,6 +1,10 @@
-// // src/app/api/signup/route.js - UPDATED FOR MONGODB ATLAS
+
+
+
+// // src/app/api/signup/route.js
 // import { NextResponse } from 'next/server';
 // import { MongoClient } from 'mongodb';
+// import bcrypt from 'bcryptjs';
 
 // export async function POST(request) {
 //   console.log('🚀 POST /api/signup - START');
@@ -125,13 +129,18 @@
 //         );
 //       }
       
+//       // Hash the password
+//       const salt = await bcrypt.genSalt(10);
+//       const hashedPassword = await bcrypt.hash(data.password, salt);
+      
 //       // Create user document
 //       const userDoc = {
 //         name: data.name.trim(),
 //         email: data.email.toLowerCase().trim(),
-//         password: data.password, // Note: In production, hash this password!
+//         password: hashedPassword,
 //         role: data.role,
-     
+//         createdAt: new Date(),
+//         updatedAt: new Date()
 //       };
       
 //       console.log('➕ Inserting new user document...');
@@ -259,6 +268,8 @@
 // }
 
 
+
+
 // src/app/api/signup/route.js
 import { NextResponse } from 'next/server';
 import { MongoClient } from 'mongodb';
@@ -329,6 +340,15 @@ export async function POST(request) {
       );
     }
     
+    // Validate role
+    const validRoles = ['admin', 'moderator'];
+    if (!validRoles.includes(data.role)) {
+      return NextResponse.json(
+        { message: "Invalid role. Must be 'admin' or 'moderator'" },
+        { status: 400 }
+      );
+    }
+    
     // Get MongoDB URI from environment
     const uri = process.env.MONGODB_URI;
     console.log('🔍 MONGODB_URI exists:', !!uri);
@@ -347,11 +367,8 @@ export async function POST(request) {
     // Connect to MongoDB Atlas
     console.log('🔗 Connecting to MongoDB Atlas...');
     
-    // For MongoDB Atlas, use these options
     const client = new MongoClient(uri, {
-      // MongoDB Atlas requires TLS/SSL
       tls: true,
-      // Increase timeouts for Atlas
       serverSelectionTimeoutMS: 30000,
       connectTimeoutMS: 30000,
       socketTimeoutMS: 45000,
@@ -364,7 +381,6 @@ export async function POST(request) {
       connectionSuccessful = true;
       console.log('✅ Successfully connected to MongoDB Atlas');
       
-      // Get database and collection
       const db = client.db('office-cost-site');
       const usersCollection = db.collection('users');
       
@@ -409,7 +425,8 @@ export async function POST(request) {
       console.log('✅ User created successfully:', {
         insertedId: result.insertedId,
         name: userDoc.name,
-        email: userDoc.email
+        email: userDoc.email,
+        role: userDoc.role
       });
       
       // Return success response
@@ -428,7 +445,6 @@ export async function POST(request) {
     } catch (dbError) {
       console.error('❌ Database operation failed:', dbError.message);
       
-      // Handle specific MongoDB errors
       if (dbError.name === 'MongoServerError') {
         if (dbError.code === 11000) {
           return NextResponse.json(
@@ -438,7 +454,6 @@ export async function POST(request) {
         }
       }
       
-      // Handle connection errors
       if (!connectionSuccessful) {
         return NextResponse.json(
           { 
@@ -452,7 +467,6 @@ export async function POST(request) {
       
       throw dbError;
     } finally {
-      // Always close the connection
       if (client) {
         await client.close();
         console.log('🔌 MongoDB connection closed');
@@ -461,66 +475,12 @@ export async function POST(request) {
     
   } catch (error) {
     console.error('❌ Unexpected error in signup:', error);
-    console.error('Error stack:', error.stack);
-    
     return NextResponse.json(
       { 
         message: "An unexpected error occurred",
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
-        timestamp: new Date().toISOString()
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
       },
       { status: 500 }
     );
-  }
-}
-
-// GET endpoint for testing
-export async function GET(request) {
-  console.log('🔍 GET /api/signup - Testing endpoint');
-  
-  try {
-    const uri = process.env.MONGODB_URI;
-    
-    if (!uri) {
-      return NextResponse.json({
-        status: "error",
-        message: "MONGODB_URI is not configured",
-        timestamp: new Date().toISOString()
-      }, { status: 500 });
-    }
-    
-    // Test the connection
-    const client = new MongoClient(uri, {
-      tls: true,
-      serverSelectionTimeoutMS: 10000
-    });
-    
-    await client.connect();
-    
-    const db = client.db('office-cost-site');
-    const collections = await db.listCollections().toArray();
-    const usersCount = await db.collection('users').countDocuments();
-    
-    await client.close();
-    
-    return NextResponse.json({
-      status: "success",
-      message: "API is working and connected to MongoDB Atlas",
-      database: "office-cost-site",
-      collections: collections.map(c => c.name),
-      totalUsers: usersCount,
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('❌ GET test failed:', error);
-    
-    return NextResponse.json({
-      status: "error",
-      message: "Failed to connect to MongoDB Atlas",
-      error: error.message,
-      suggestion: "Check your MONGODB_URI, internet connection, and MongoDB Atlas IP whitelist",
-      timestamp: new Date().toISOString()
-    }, { status: 500 });
   }
 }

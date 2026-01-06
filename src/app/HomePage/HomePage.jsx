@@ -224,6 +224,8 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import Image from "next/image";
+
 
 export default function HomePage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -235,51 +237,160 @@ export default function HomePage() {
   const [error, setError] = useState('');
   const router = useRouter();
 
-  const handleLoginSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+// Update the handleLoginSubmit function in HomePage.jsx
+// const handleLoginSubmit = async (e) => {
+//   e.preventDefault();
+//   setLoading(true);
+//   setError('');
 
-    try {
-      // Make API call to authenticate user
-      const response = await fetch('/api/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: loginData.email,
-          password: loginData.password,
-        }),
-      });
+//   try {
+//     // Make API call to authenticate user
+//     const response = await fetch('/api/login', {
+//       method: 'POST',
+//       headers: {
+//         'Content-Type': 'application/json',
+//       },
+//       body: JSON.stringify({
+//         email: loginData.email,
+//         password: loginData.password,
+//       }),
+//     });
 
-      const data = await response.json();
+//     const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Login failed');
-      }
+//     if (!response.ok) {
+//       throw new Error(data.message || data.error || 'Login failed');
+//     }
 
-      // Store user data in localStorage or session
-      localStorage.setItem('user', JSON.stringify(data.user));
-      localStorage.setItem('isAuthenticated', 'true');
+//     console.log('Login response:', data); // Debug log
 
-      // Role-based redirect
-      if (data.user.role === 'admin') {
-        router.push('/dashboard');
-      } else if (data.user.role === 'moderator') {
-        router.push('/signUp');
-      } else {
-        // Handle other roles or default to a dashboard
-        router.push('');
-      }
+//     // Check if user data exists
+//     if (!data.data && !data.user) {
+//       throw new Error('User data not found in response');
+//     }
 
-    } catch (error) {
-      console.error('Login error:', error);
-      setError(error.message || 'Invalid email or password');
-    } finally {
-      setLoading(false);
+//     // Extract user data - check both possible response formats
+//     const userData = data.data || data.user;
+    
+//     if (!userData) {
+//       throw new Error('User information not available');
+//     }
+
+//     // Check if role exists
+//     if (!userData.role) {
+//       throw new Error('User role not found');
+//     }
+
+//     // Store user data in localStorage
+//     localStorage.setItem('user', JSON.stringify(userData));
+//     localStorage.setItem('auth_token', data.token || '');
+//     localStorage.setItem('isAuthenticated', 'true');
+
+//     // Debug log
+//     console.log('User data stored:', {
+//       name: userData.name,
+//       email: userData.email,
+//       role: userData.role
+//     });
+
+//     // Role-based redirect with proper checking
+//     if (userData.role === 'admin') {
+//       console.log('Redirecting admin to dashboard');
+//       router.push('/dashboard');
+//     } else if (userData.role === 'moderator') {
+//       console.log('Redirecting moderator to /moderator');
+//       router.push('/dashboard'); // Changed from /signUp to /moderator
+//     } else {
+//       // Handle other roles or default
+//       console.log('Unknown role, redirecting to home');
+//       router.push('/');
+//     }
+
+//   } catch (error) {
+//     console.error('Login error details:', error);
+    
+//     // Provide more specific error messages
+//     if (error.message.includes('role')) {
+//       setError('User role information is missing. Please contact support.');
+//     } else if (error.message.includes('User data')) {
+//       setError('Server response format error. Please try again.');
+//     } else {
+//       setError(error.message || 'Invalid email or password');
+//     }
+//   } finally {
+//     setLoading(false);
+//   }
+// };
+// In your HomePage component
+const handleLoginSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  setError('');
+
+  try {
+    // Call your Next.js API route
+    const response = await fetch('/api/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: loginData.email,
+        password: loginData.password,
+      }),
+    });
+
+    const data = await response.json();
+    console.log('Login response:', data);
+
+    if (!response.ok) {
+      throw new Error(data.message || data.error || 'Login failed');
     }
-  };
+
+    // Check if login was successful
+    if (!data.success) {
+      throw new Error(data.message || 'Login failed');
+    }
+
+    // Extract user data
+    const userData = data.data;
+    
+    if (!userData) {
+      throw new Error('User information not available');
+    }
+
+    // Store user data and token
+    localStorage.setItem('user', JSON.stringify(userData));
+    
+    // Also store the token separately if provided
+    if (data.token) {
+      localStorage.setItem('auth_token', data.token);
+    }
+    
+    localStorage.setItem('isAuthenticated', 'true');
+
+    console.log('User logged in:', {
+      name: userData.name,
+      email: userData.email,
+      role: userData.role
+    });
+
+    // Role-based redirect
+    if (userData.role === 'admin') {
+      router.push('/dashboard');
+    } else if (userData.role === 'moderator') {
+      router.push('/dashboard/moderatorDashboard'); // Both admin and moderator go to dashboard
+    } else {
+      router.push('/dashboard'); // Default to dashboard
+    }
+
+  } catch (error) {
+    console.error('Login error:', error);
+    setError(error.message || 'Invalid email or password');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleChange = (e) => {
     setLoginData({
@@ -293,21 +404,31 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/50 to-indigo-50/50">
       {/* Modern Header */}
-      <header className="absolute top-0 left-0 right-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
-                <DollarSign className="text-white" size={22} />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">CostMaster</h1>
-                <p className="text-xs text-gray-600 font-medium">Finance Intelligence</p>
-              </div>
-            </div>
-          </div>
+     <header className="absolute top-0 left-0 right-0 z-50">
+  <div className="max-w-7xl mx-auto px-6 py-4">
+    <div className="flex items-center justify-between">
+      <div className="flex items-center space-x-3">
+        <div className="w-10 h-10 rounded-full shadow-lg overflow-hidden">
+          <Image
+            src="/logo.jpg"
+            alt="CostMaster Logo"
+            width={40}
+            height={40}
+            className="object-contain"
+            priority
+          />
         </div>
-      </header>
+
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">CostMaster</h1>
+          <p className="text-xs text-gray-600 font-medium">
+            Finance Intelligence
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
 
       <main className="min-h-screen flex items-center justify-center py-20">
         <div className="w-full max-w-6xl grid lg:grid-cols-2 gap-12">
