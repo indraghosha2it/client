@@ -184,6 +184,7 @@ import {
   MoreHorizontal,
   Briefcase,
   Bell,
+  Utensils,
   User,
   Menu,
   X,
@@ -232,7 +233,7 @@ export default function DashboardLayout({ children }) {
       roles: ['admin'] // Only admin can see
     },
     { 
-      name: 'Office Rent', 
+      name: 'House Rent', 
       icon: Building2, 
       href: '/dashboard/officeRent',
       roles: ['admin', 'moderator'] 
@@ -254,6 +255,12 @@ export default function DashboardLayout({ children }) {
       icon: Cloud, 
       href: '/dashboard/subscriptions',
       roles: ['admin'] // Only admin can see
+    }, 
+    { 
+      name: 'Food Cost', 
+      icon: Utensils, 
+      href: '/dashboard/foodCost',
+    roles: ['admin', 'moderator'] 
     },
     { 
       name: 'Transport', 
@@ -277,7 +284,7 @@ export default function DashboardLayout({ children }) {
 
   // Admin tools (only for admin)
   const adminTools = [
-    { name: 'User Management', icon: UserCog, href: '/admin/users' },
+    { name: 'User Management', icon: UserCog, href: '/dashboard/userManagement' },
     { name: 'System Settings', icon: Settings, href: '/admin/settings' },
   ];
 

@@ -12,7 +12,8 @@ import {
   AlertCircle,
   BarChart3,
   PieChart,
-  Shield
+  Shield,
+  Utensils  // Added for food costs
 } from 'lucide-react';
 
 // API base URL
@@ -29,15 +30,31 @@ export default function ModeratorDashboard() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [downloadingPDF, setDownloadingPDF] = useState({ monthly: false, yearly: false });
+  const [pdfReady, setPdfReady] = useState(false);
   
-  // Dashboard state
+  // Initialize PDF libraries on client side
+  useEffect(() => {
+    const initializePDF = async () => {
+      if (typeof window !== 'undefined') {
+        const [jsPDFModule] = await Promise.all([
+          import('jspdf'),
+          import('jspdf-autotable').catch(() => ({ default: null }))
+        ]);
+        setPdfReady(true);
+      }
+    };
+    
+    initializePDF();
+  }, []);
+  
+  // Dashboard state - UPDATED to include food costs
   const [dashboardData, setDashboardData] = useState({
     // Selected Period
     selectedYear: new Date().getFullYear(),
     selectedMonth: new Date().getMonth() + 1,
     selectedYearForYearly: new Date().getFullYear(),
     
-    // Summary Data
+    // Summary Data - UPDATED to include food costs
     monthlySummary: {
       total: 0,
       officeRent: 0,
@@ -45,14 +62,18 @@ export default function ModeratorDashboard() {
       officeSupplies: 0,
       transportExpenses: 0,
       extraExpenses: 0,
+      foodCosts: 0,  // Added food costs
       isLoading: false,
-      error: null
+      error: null,
+      categoryBreakdown: []  // Added for better organization
     },
     
     yearlySummary: {
       total: 0,
       isLoading: false,
-      error: null
+      error: null,
+      monthlyBreakdown: [],  // Added for better organization
+      categoryTotals: []     // Added for better organization
     }
   });
 
@@ -133,7 +154,13 @@ export default function ModeratorDashboard() {
     return total > 0 ? ((amount / total) * 100).toFixed(1) : 0;
   };
 
-  // Fetch monthly summary data (MODERATOR VERSION - NO EMPLOYEE DATA)
+  // Calculate percentage for yearly summary
+  const calculateYearlyPercentage = (amount) => {
+    const total = dashboardData.yearlySummary.total;
+    return total > 0 ? ((amount / total) * 100).toFixed(1) : 0;
+  };
+
+  // Fetch monthly summary data (UPDATED to include food costs)
   const fetchMonthlySummary = async () => {
     if (!user) return;
     
@@ -147,13 +174,14 @@ export default function ModeratorDashboard() {
       const headers = getAuthHeaders();
       
       // MODERATOR: Only fetch data that moderators can access
-      // No employees, no software subscriptions
+      // No employees, no software subscriptions - ADDED FOOD COSTS
       const responses = await Promise.allSettled([
         fetch(`${API_BASE_URL}/office-rents`, { headers }),
         fetch(`${API_BASE_URL}/bills/month/${selectedYear}/${selectedMonth}`, { headers }),
         fetch(`${API_BASE_URL}/office-supplies`, { headers }),
         fetch(`${API_BASE_URL}/transport-expenses`, { headers }),
-        fetch(`${API_BASE_URL}/extra-expenses`, { headers })
+        fetch(`${API_BASE_URL}/extra-expenses`, { headers }),
+        fetch(`${API_BASE_URL}/food-costs`, { headers })  // Added food costs
       ]);
 
       // Check for authentication errors
@@ -196,15 +224,27 @@ export default function ModeratorDashboard() {
       const monthSupplies = filterByMonth(data[2]?.data, 'date');
       const monthTransport = filterByMonth(data[3]?.data, 'date');
       const monthExtra = filterByMonth(data[4]?.data, 'date');
+      const monthFoodCosts = filterByMonth(data[5]?.data, 'date');  // Added food costs
 
-      // Calculate totals (NO EMPLOYEE SALARIES, NO SOFTWARE SUBSCRIPTIONS)
+      // Calculate totals (NO EMPLOYEE SALARIES, NO SOFTWARE SUBSCRIPTIONS) - INCLUDES FOOD COSTS
       const officeRent = monthRents.reduce((sum, rent) => sum + (rent.rent || 0), 0);
       const utilities = monthBills.reduce((sum, bill) => sum + (bill.amount || 0), 0);
       const officeSupplies = monthSupplies.reduce((sum, supply) => sum + (supply.price || 0), 0);
       const transportExpenses = monthTransport.reduce((sum, transport) => sum + (transport.cost || 0), 0);
       const extraExpenses = monthExtra.reduce((sum, extra) => sum + (extra.amount || 0), 0);
+      const foodCosts = monthFoodCosts.reduce((sum, food) => sum + (food.cost || 0), 0);  // Added food costs
 
-      const total = officeRent + utilities + officeSupplies + transportExpenses + extraExpenses;
+      const total = officeRent + utilities + officeSupplies + transportExpenses + extraExpenses + foodCosts;
+
+      // Create category breakdown for better organization
+      const categoryBreakdown = [
+        { category: 'House Rent', amount: officeRent, color: '#10B981' },
+        { category: 'Utilities', amount: utilities, color: '#F59E0B' },
+        { category: 'Office Supplies', amount: officeSupplies, color: '#8B5CF6' },
+        { category: 'Transport Expenses', amount: transportExpenses, color: '#06B6D4' },
+        { category: 'Extra Expenses', amount: extraExpenses, color: '#EF4444' },
+        { category: 'Food Costs', amount: foodCosts, color: '#22C55E' }  // Added food costs
+      ].filter(item => item.amount > 0);
 
       setDashboardData(prev => ({
         ...prev,
@@ -215,6 +255,8 @@ export default function ModeratorDashboard() {
           officeSupplies,
           transportExpenses,
           extraExpenses,
+          foodCosts,  // Added food costs
+          categoryBreakdown,  // Added category breakdown
           isLoading: false,
           error: null
         }
@@ -240,7 +282,7 @@ export default function ModeratorDashboard() {
     }
   };
 
-  // Fetch yearly summary data (MODERATOR VERSION - NO EMPLOYEE DATA)
+  // Fetch yearly summary data (UPDATED to include food costs)
   const fetchYearlySummary = async () => {
     if (!user) return;
     
@@ -253,13 +295,14 @@ export default function ModeratorDashboard() {
       const { selectedYearForYearly } = dashboardData;
       const headers = getAuthHeaders();
       
-      // MODERATOR: Only fetch data that moderators can access
+      // MODERATOR: Only fetch data that moderators can access - ADDED FOOD COSTS
       const responses = await Promise.allSettled([
         fetch(`${API_BASE_URL}/office-rents`, { headers }),
         fetch(`${API_BASE_URL}/bills`, { headers }),
         fetch(`${API_BASE_URL}/office-supplies`, { headers }),
         fetch(`${API_BASE_URL}/transport-expenses`, { headers }),
-        fetch(`${API_BASE_URL}/extra-expenses`, { headers })
+        fetch(`${API_BASE_URL}/extra-expenses`, { headers }),
+        fetch(`${API_BASE_URL}/food-costs`, { headers })  // Added food costs
       ]);
 
       // Check for authentication errors
@@ -287,7 +330,7 @@ export default function ModeratorDashboard() {
         })
       );
 
-      // Filter data for selected year (NO EMPLOYEE DATA)
+      // Filter data for selected year (NO EMPLOYEE DATA) - INCLUDES FOOD COSTS
       const filterByYear = (items, dateField) => {
         if (!items || !Array.isArray(items)) return [];
         return items.filter(item => {
@@ -302,19 +345,74 @@ export default function ModeratorDashboard() {
       const yearSupplies = filterByYear(data[2]?.data, 'date');
       const yearTransport = filterByYear(data[3]?.data, 'date');
       const yearExtra = filterByYear(data[4]?.data, 'date');
+      const yearFoodCosts = filterByYear(data[5]?.data, 'date');  // Added food costs
 
-      // Calculate total for the year (NO EMPLOYEE SALARIES, NO SOFTWARE SUBSCRIPTIONS)
+      // Calculate monthly breakdown for the year
+      const monthlyBreakdown = Array.from({ length: 12 }, (_, i) => {
+        const month = i + 1;
+        const monthName = MONTHS[i].substring(0, 3);
+        
+        // Filter data for each month
+        const filterByMonth = (items, dateField) => {
+          return items.filter(item => {
+            const date = new Date(item[dateField]);
+            return date.getMonth() + 1 === month;
+          });
+        };
+
+        const monthRents = filterByMonth(yearRents, 'date');
+        const monthBills = yearBills.filter(bill => bill.month === month);
+        const monthSupplies = filterByMonth(yearSupplies, 'date');
+        const monthTransport = filterByMonth(yearTransport, 'date');
+        const monthExtra = filterByMonth(yearExtra, 'date');
+        const monthFoodCosts = filterByMonth(yearFoodCosts, 'date');  // Added food costs
+
+        const total = 
+          monthRents.reduce((sum, rent) => sum + (rent.rent || 0), 0) +
+          monthBills.reduce((sum, bill) => sum + (bill.amount || 0), 0) +
+          monthSupplies.reduce((sum, supply) => sum + (supply.price || 0), 0) +
+          monthTransport.reduce((sum, transport) => sum + (transport.cost || 0), 0) +
+          monthExtra.reduce((sum, extra) => sum + (extra.amount || 0), 0) +
+          monthFoodCosts.reduce((sum, food) => sum + (food.cost || 0), 0);  // Added food costs
+
+        return {
+          month,
+          monthName,
+          total,
+          officeRent: monthRents.reduce((sum, rent) => sum + (rent.rent || 0), 0),
+          utilities: monthBills.reduce((sum, bill) => sum + (bill.amount || 0), 0),
+          officeSupplies: monthSupplies.reduce((sum, supply) => sum + (supply.price || 0), 0),
+          transportExpenses: monthTransport.reduce((sum, transport) => sum + (transport.cost || 0), 0),
+          extraExpenses: monthExtra.reduce((sum, extra) => sum + (extra.amount || 0), 0),
+          foodCosts: monthFoodCosts.reduce((sum, food) => sum + (food.cost || 0), 0)  // Added food costs
+        };
+      });
+
+      // Calculate category totals for the year including food costs
+      const categoryTotals = [
+        { category: 'House Rent', amount: yearRents.reduce((sum, rent) => sum + (rent.rent || 0), 0), color: '#10B981' },
+        { category: 'Utilities', amount: yearBills.reduce((sum, bill) => sum + (bill.amount || 0), 0), color: '#F59E0B' },
+        { category: 'Office Supplies', amount: yearSupplies.reduce((sum, supply) => sum + (supply.price || 0), 0), color: '#8B5CF6' },
+        { category: 'Transport Expenses', amount: yearTransport.reduce((sum, transport) => sum + (transport.cost || 0), 0), color: '#06B6D4' },
+        { category: 'Extra Expenses', amount: yearExtra.reduce((sum, extra) => sum + (extra.amount || 0), 0), color: '#EF4444' },
+        { category: 'Food Costs', amount: yearFoodCosts.reduce((sum, food) => sum + (food.cost || 0), 0), color: '#22C55E' }  // Added food costs
+      ].filter(item => item.amount > 0);
+
+      // Calculate total for the year (NO EMPLOYEE SALARIES, NO SOFTWARE SUBSCRIPTIONS) - INCLUDES FOOD COSTS
       const total = 
         yearRents.reduce((sum, rent) => sum + (rent.rent || 0), 0) +
         yearBills.reduce((sum, bill) => sum + (bill.amount || 0), 0) +
         yearSupplies.reduce((sum, supply) => sum + (supply.price || 0), 0) +
         yearTransport.reduce((sum, transport) => sum + (transport.cost || 0), 0) +
-        yearExtra.reduce((sum, extra) => sum + (extra.amount || 0), 0);
+        yearExtra.reduce((sum, extra) => sum + (extra.amount || 0), 0) +
+        yearFoodCosts.reduce((sum, food) => sum + (food.cost || 0), 0);  // Added food costs
 
       setDashboardData(prev => ({
         ...prev,
         yearlySummary: {
           total,
+          monthlyBreakdown,      // Added monthly breakdown
+          categoryTotals,        // Added category totals
           isLoading: false,
           error: null
         }
@@ -340,18 +438,18 @@ export default function ModeratorDashboard() {
     }
   };
 
-  // Download Monthly Summary PDF (Simple version)
+  // Download Monthly Summary PDF (Enhanced version with food costs)
   const downloadMonthlyPDF = async () => {
     try {
       setDownloadingPDF(prev => ({ ...prev, monthly: true }));
       
       // Dynamically import jsPDF
       const { default: jsPDF } = await import('jspdf');
-      
-      const doc = new jsPDF();
+      const summary = dashboardData.monthlySummary;
       const monthName = MONTHS[dashboardData.selectedMonth - 1];
       const year = dashboardData.selectedYear;
-      const summary = dashboardData.monthlySummary;
+      
+      const doc = new jsPDF();
       
       // Add title
       doc.setFontSize(20);
@@ -370,49 +468,86 @@ export default function ModeratorDashboard() {
       doc.setTextColor(30, 64, 175);
       doc.text(`Total Monthly Expenses: ${formatCurrency(summary.total)}`, 105, 60, { align: 'center' });
       
-      // Add a simple table with available data
+      // Create a table
       let yPosition = 80;
       doc.setFontSize(12);
       doc.setTextColor(0, 0, 0);
       
-      // Office Rent
-      if (summary.officeRent > 0) {
-        doc.text(`Office Rent: ${formatCurrency(summary.officeRent)}`, 20, yPosition);
-        yPosition += 10;
-      }
+      // Table headers
+      doc.setFont(undefined, 'bold');
+      doc.text('Category', 20, yPosition);
+      doc.text('Amount (BDT)', 120, yPosition);
+      doc.text('Percentage', 180, yPosition);
+      doc.setFont(undefined, 'normal');
       
-      // Utilities
-      if (summary.utilities > 0) {
-        doc.text(`Utilities: ${formatCurrency(summary.utilities)}`, 20, yPosition);
-        yPosition += 10;
-      }
+      yPosition += 10;
       
-      // Office Supplies
-      if (summary.officeSupplies > 0) {
-        doc.text(`Office Supplies: ${formatCurrency(summary.officeSupplies)}`, 20, yPosition);
-        yPosition += 10;
-      }
+      // Add a line separator
+      doc.setDrawColor(200, 200, 200);
+      doc.line(20, yPosition, 190, yPosition);
+      yPosition += 10;
       
-      // Transport Expenses
-      if (summary.transportExpenses > 0) {
-        doc.text(`Transport Expenses: ${formatCurrency(summary.transportExpenses)}`, 20, yPosition);
-        yPosition += 10;
-      }
+      // Table rows with all categories including food costs
+      const categories = [
+        { name: 'House Rent', amount: summary.officeRent },
+        { name: 'Utilities', amount: summary.utilities },
+        { name: 'Office Supplies', amount: summary.officeSupplies },
+        { name: 'Transport Expenses', amount: summary.transportExpenses },
+        { name: 'Extra Expenses', amount: summary.extraExpenses },
+        { name: 'Food Costs', amount: summary.foodCosts }
+      ];
       
-      // Extra Expenses
-      if (summary.extraExpenses > 0) {
-        doc.text(`Extra Expenses: ${formatCurrency(summary.extraExpenses)}`, 20, yPosition);
-        yPosition += 10;
-      }
+      categories.forEach(category => {
+        if (category.amount > 0) {
+          const percentage = ((category.amount / summary.total) * 100).toFixed(1);
+          doc.text(category.name, 20, yPosition);
+          doc.text(formatAmount(category.amount), 120, yPosition);
+          doc.text(`${percentage}%`, 180, yPosition);
+          yPosition += 8;
+        }
+      });
+      
+      // Add total row
+      yPosition += 5;
+      doc.setDrawColor(100, 100, 100);
+      doc.line(20, yPosition, 190, yPosition);
+      yPosition += 8;
+      
+      doc.setFont(undefined, 'bold');
+      doc.text('TOTAL', 20, yPosition);
+      doc.text(formatAmount(summary.total), 120, yPosition);
+      doc.text('100%', 180, yPosition);
+      doc.setFont(undefined, 'normal');
+      
+      // Add food cost analysis
+      yPosition += 20;
+      doc.setFontSize(12);
+      doc.setTextColor(34, 197, 94);  // Green color for food costs
+      doc.text('Food Cost Analysis:', 20, yPosition);
+      
+      yPosition += 8;
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+      
+      const dailyAverage = summary.foodCosts / 30;
+      const weeklyAverage = summary.foodCosts / 4;
+      
+      doc.text(`• Daily Average: ${formatCurrency(dailyAverage)}`, 25, yPosition);
+      yPosition += 6;
+      doc.text(`• Weekly Average: ${formatCurrency(weeklyAverage)}`, 25, yPosition);
+      yPosition += 6;
+      doc.text(`• Percentage of Total: ${calculatePercentage(summary.foodCosts)}%`, 25, yPosition);
       
       // Add note about restricted access
-      yPosition += 20;
+      yPosition += 15;
       doc.setFontSize(10);
       doc.setTextColor(150, 150, 150);
-      doc.text('Note: This is a moderator view. Some data may be restricted.', 20, yPosition);
-      doc.text('Contact administrator for full access.', 20, yPosition + 6);
+      doc.text('Note: This is a moderator view. Employee salary data is not accessible.', 20, yPosition);
+      yPosition += 6;
+      doc.text('Contact administrator for full financial reports.', 20, yPosition);
       
       // Add footer
+      doc.setFontSize(8);
       doc.text(`Page 1 of 1`, 195, 285, { align: 'right' });
       doc.text('Confidential - Moderator Expenses Report', 15, 285);
       
@@ -427,17 +562,17 @@ export default function ModeratorDashboard() {
     }
   };
 
-  // Download Yearly Summary PDF (Simple version)
+  // Download Yearly Summary PDF (Enhanced version with food costs)
   const downloadYearlyPDF = async () => {
     try {
       setDownloadingPDF(prev => ({ ...prev, yearly: true }));
       
       // Dynamically import jsPDF
       const { default: jsPDF } = await import('jspdf');
-      
-      const doc = new jsPDF();
       const year = dashboardData.selectedYearForYearly;
       const summary = dashboardData.yearlySummary;
+      
+      const doc = new jsPDF();
       
       // Add title
       doc.setFontSize(20);
@@ -456,21 +591,85 @@ export default function ModeratorDashboard() {
       doc.setTextColor(34, 197, 94);
       doc.text(`Total Yearly Expenses: ${formatCurrency(summary.total)}`, 105, 60, { align: 'center' });
       
-      // Add note about restricted access
-      doc.setFontSize(10);
-      doc.setTextColor(150, 150, 150);
-      doc.text('Note: This is a moderator view. Employee salary data is not accessible.', 20, 80);
-      doc.text('Contact administrator for full financial reports.', 20, 90);
-      
-      // Add average monthly
-      const avgMonthly = summary.total / 12;
+      // Create monthly breakdown table
+      let yPosition = 80;
       doc.setFontSize(12);
       doc.setTextColor(0, 0, 0);
-      doc.text(`Average Monthly Expense: ${formatCurrency(avgMonthly)}`, 20, 110);
       
-      // Add footer
+      // Table headers
+      doc.setFont(undefined, 'bold');
+      doc.text('Month', 20, yPosition);
+      doc.text('Total (BDT)', 60, yPosition);
+      doc.text('Food Costs', 120, yPosition);
+      doc.text('% of Total', 180, yPosition);
+      doc.setFont(undefined, 'normal');
+      
+      yPosition += 10;
+      
+      // Add a line separator
+      doc.setDrawColor(200, 200, 200);
+      doc.line(20, yPosition, 190, yPosition);
+      yPosition += 10;
+      
+      // Table rows
+      summary.monthlyBreakdown.forEach(month => {
+        const monthPercentage = ((month.total / summary.total) * 100).toFixed(1);
+        const foodPercentage = month.total > 0 ? ((month.foodCosts / month.total) * 100).toFixed(1) : '0.0';
+        
+        doc.text(month.monthName, 20, yPosition);
+        doc.text(formatAmount(month.total), 60, yPosition);
+        doc.text(formatAmount(month.foodCosts), 120, yPosition);
+        doc.text(`${foodPercentage}%`, 180, yPosition);
+        yPosition += 8;
+      });
+      
+      // Add total row
+      yPosition += 5;
+      doc.setDrawColor(100, 100, 100);
+      doc.line(20, yPosition, 190, yPosition);
+      yPosition += 8;
+      
+      doc.setFont(undefined, 'bold');
+      doc.text('YEAR TOTAL', 20, yPosition);
+      doc.text(formatAmount(summary.total), 60, yPosition);
+      doc.text(formatAmount(summary.categoryTotals.find(c => c.category === 'Food Costs')?.amount || 0), 120, yPosition);
+      const yearlyFoodPercentage = summary.total > 0 ? 
+        ((summary.categoryTotals.find(c => c.category === 'Food Costs')?.amount || 0) / summary.total * 100).toFixed(1) : '0.0';
+      doc.text(`${yearlyFoodPercentage}%`, 180, yPosition);
+      doc.setFont(undefined, 'normal');
+      
+      // Add food cost summary
+      yPosition += 20;
+      doc.setFontSize(12);
+      doc.setTextColor(34, 197, 94);  // Green color for food costs
+      doc.text('Food Cost Summary:', 20, yPosition);
+      
+      yPosition += 8;
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+      
+      const totalFoodCosts = summary.categoryTotals.find(c => c.category === 'Food Costs')?.amount || 0;
+      const avgMonthlyFood = totalFoodCosts / 12;
+      const avgDailyFood = totalFoodCosts / 365;
+      
+      doc.text(`• Total Food Costs: ${formatCurrency(totalFoodCosts)}`, 25, yPosition);
+      yPosition += 6;
+      doc.text(`• Average Monthly: ${formatCurrency(avgMonthlyFood)}`, 25, yPosition);
+      yPosition += 6;
+      doc.text(`• Average Daily: ${formatCurrency(avgDailyFood)}`, 25, yPosition);
+      yPosition += 6;
+      doc.text(`• Percentage of Yearly Total: ${calculateYearlyPercentage(totalFoodCosts)}%`, 25, yPosition);
+      
+      // Add note about restricted access
+      yPosition += 15;
       doc.setFontSize(10);
       doc.setTextColor(150, 150, 150);
+      doc.text('Note: This is a moderator view. Employee salary data is not accessible.', 20, yPosition);
+      yPosition += 6;
+      doc.text('Contact administrator for full financial reports.', 20, yPosition);
+      
+      // Add footer
+      doc.setFontSize(8);
       doc.text(`Page 1 of 1`, 195, 285, { align: 'right' });
       doc.text('Confidential - Moderator Yearly Report', 15, 285);
       
@@ -571,7 +770,7 @@ export default function ModeratorDashboard() {
         </div>
       )}
 
-      {/* Monthly Summary Section */}
+      {/* Monthly Summary Section - UPDATED to include food costs */}
       <div className="mb-8 bg-white rounded-xl shadow-lg p-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
           <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4 md:mb-0">
@@ -648,10 +847,48 @@ export default function ModeratorDashboard() {
               </div>
             </div>
 
-            {/* Quick Summary Stats */}
+            {/* Category Breakdown - UPDATED to include food costs */}
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Category Breakdown</h3>
+              <div className="space-y-4">
+                {dashboardData.monthlySummary.categoryBreakdown.map((item, index) => (
+                  <div key={index} className="space-y-2">
+                    <div className="flex justify-between">
+                      <div className="flex items-center">
+                        <span className="font-medium text-gray-700">{item.category}</span>
+                        {item.category === 'Food Costs' && (
+                          <Utensils className="w-4 h-4 ml-2 text-green-500" />
+                        )}
+                      </div>
+                      <span className="font-semibold text-gray-900">
+                        {formatCurrency(item.amount)}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="h-2 rounded-full" 
+                        style={{ 
+                          width: `${calculatePercentage(item.amount)}%`,
+                          backgroundColor: item.color 
+                        }}
+                      ></div>
+                    </div>
+                    <div className="flex justify-between text-sm text-gray-500">
+                      <span>{calculatePercentage(item.amount)}% of total</span>
+                      <span>BDT {formatAmount(item.amount)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Quick Summary Stats - UPDATED to include food costs */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-gray-50 rounded-lg p-4">
-                <p className="text-gray-500 text-sm">Office Expenses</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-gray-500 text-sm">Office Expenses</p>
+                  <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded">🏢</span>
+                </div>
                 <p className="text-xl font-bold text-gray-900 mt-1">
                   {formatCurrency(dashboardData.monthlySummary.officeRent + dashboardData.monthlySummary.officeSupplies)}
                 </p>
@@ -663,7 +900,10 @@ export default function ModeratorDashboard() {
               </div>
               
               <div className="bg-gray-50 rounded-lg p-4">
-                <p className="text-gray-500 text-sm">Operational Costs</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-gray-500 text-sm">Operational Costs</p>
+                  <span className="text-xs px-2 py-1 bg-green-100 text-green-800 rounded">🚗</span>
+                </div>
                 <p className="text-xl font-bold text-gray-900 mt-1">
                   {formatCurrency(dashboardData.monthlySummary.utilities + dashboardData.monthlySummary.transportExpenses)}
                 </p>
@@ -675,20 +915,60 @@ export default function ModeratorDashboard() {
               </div>
               
               <div className="bg-gray-50 rounded-lg p-4">
-                <p className="text-gray-500 text-sm">Miscellaneous</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-gray-500 text-sm">Food & Miscellaneous</p>
+                  <div className="flex items-center">
+                    <Utensils className="w-4 h-4 text-green-500 mr-1" />
+                    <span className="text-xs px-2 py-1 bg-red-100 text-red-800 rounded">📝</span>
+                  </div>
+                </div>
                 <p className="text-xl font-bold text-gray-900 mt-1">
-                  {formatCurrency(dashboardData.monthlySummary.extraExpenses)}
+                  {formatCurrency(dashboardData.monthlySummary.foodCosts + dashboardData.monthlySummary.extraExpenses)}
                 </p>
-                <p className="text-sm text-gray-500 mt-1">
-                  Extra expenses for {MONTHS[dashboardData.selectedMonth - 1]}
-                </p>
+                <div className="flex items-center text-sm text-gray-500 mt-1">
+                  <span>Food: {formatCurrency(dashboardData.monthlySummary.foodCosts)}</span>
+                  <span className="mx-2">•</span>
+                  <span>Extra: {formatCurrency(dashboardData.monthlySummary.extraExpenses)}</span>
+                </div>
               </div>
+            </div>
+
+            {/* Detailed Category Cards - UPDATED to include food costs */}
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[
+                { label: 'House Rent', value: dashboardData.monthlySummary.officeRent, color: 'green', icon: '🏢' },
+                { label: 'Utilities', value: dashboardData.monthlySummary.utilities, color: 'yellow', icon: '💡' },
+                { label: 'Office Supplies', value: dashboardData.monthlySummary.officeSupplies, color: 'purple', icon: '📦' },
+                { label: 'Transport Expenses', value: dashboardData.monthlySummary.transportExpenses, color: 'cyan', icon: '🚗' },
+                { label: 'Extra Expenses', value: dashboardData.monthlySummary.extraExpenses, color: 'red', icon: '📝' },
+                { label: 'Food Costs', value: dashboardData.monthlySummary.foodCosts, color: 'green', icon: '🍽️' },
+              ].map((item, index) => (
+                <div key={index} className="bg-white border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center mb-2">
+                    <span className="text-xl mr-2">{item.icon}</span>
+                    <p className="text-gray-700 text-sm font-medium">{item.label}</p>
+                  </div>
+                  <p className="text-xl font-bold text-gray-900">
+                    {formatCurrency(item.value)}
+                  </p>
+                  <div className="flex justify-between items-center mt-2">
+                    <p className="text-sm text-gray-400">
+                      {item.value > 0 ? `${calculatePercentage(item.value)}% of total` : 'No data'}
+                    </p>
+                    {item.label === 'Food Costs' && (
+                      <div className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                        Daily: {formatCurrency(item.value / 30)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </>
         )}
       </div>
 
-      {/* Yearly Summary Section */}
+      {/* Yearly Summary Section - UPDATED to include food costs */}
       <div className="mb-8 bg-white rounded-xl shadow-lg p-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
           <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4 md:mb-0">
@@ -748,10 +1028,114 @@ export default function ModeratorDashboard() {
               </div>
             </div>
 
-            {/* Yearly Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Monthly Breakdown Chart - UPDATED to show food costs */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Monthly Breakdown</h3>
+                <div className="flex items-center text-sm text-green-600">
+                  <Utensils className="w-4 h-4 mr-1" />
+                  <span>Food costs highlighted</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {dashboardData.yearlySummary.monthlyBreakdown.map((month, index) => {
+                  const foodPercentage = month.total > 0 ? (month.foodCosts / month.total) * 100 : 0;
+                  const totalPercentage = month.total > 0 ? 
+                    (month.total / Math.max(...dashboardData.yearlySummary.monthlyBreakdown.map(m => m.total || 1))) * 100 : 0;
+                  
+                  return (
+                    <div key={index} className="text-center">
+                      <div className="text-sm text-gray-500 mb-1">{month.monthName}</div>
+                      <div className="text-lg font-bold text-gray-900">
+                        {formatCurrency(month.total)}
+                      </div>
+                      <div className="mt-2 relative">
+                        <div 
+                          className="h-2 bg-gray-200 rounded-full"
+                          style={{ 
+                            width: '100%',
+                            position: 'relative'
+                          }}
+                        >
+                          {/* Total expense bar */}
+                          <div 
+                            className="h-2 bg-blue-600 rounded-full absolute top-0 left-0"
+                            style={{ 
+                              width: `${Math.min(totalPercentage, 100)}%`
+                            }}
+                          ></div>
+                          
+                          {/* Food cost portion (shown on top of total) */}
+                          {month.foodCosts > 0 && (
+                            <div 
+                              className="h-2 bg-green-500 rounded-full absolute top-0 left-0"
+                              style={{ 
+                                width: `${Math.min(totalPercentage * (foodPercentage / 100), 100)}%`
+                              }}
+                            ></div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        <div>Total: BDT {formatAmount(month.total)}</div>
+                        {month.foodCosts > 0 && (
+                          <div className="text-green-600">
+                            Food: BDT {formatAmount(month.foodCosts)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Yearly Category Totals - UPDATED to include food costs */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Yearly Category Totals (BDT)</h3>
+                <div className="flex items-center">
+                  <Utensils className="w-4 h-4 text-green-500 mr-1" />
+                  <span className="text-sm text-gray-600">Food costs included</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {dashboardData.yearlySummary.categoryTotals.map((item, index) => (
+                  <div key={index} className="bg-gray-50 rounded-lg p-4">
+                    <div className="flex items-center mb-2">
+                      <div 
+                        className="w-3 h-3 rounded-full mr-2"
+                        style={{ backgroundColor: item.color }}
+                      ></div>
+                      <span className="font-medium text-gray-700">{item.category}</span>
+                      {item.category === 'Food Costs' && (
+                        <Utensils className="w-4 h-4 ml-2 text-green-500" />
+                      )}
+                    </div>
+                    <p className="text-xl font-bold text-gray-900">
+                      {formatCurrency(item.amount)}
+                    </p>
+                    <div className="text-sm text-gray-500 mt-1">
+                      <div>BDT {formatAmount(item.amount)}</div>
+                      <div>{calculateYearlyPercentage(item.amount)}% of yearly total</div>
+                      {item.category === 'Food Costs' && (
+                        <div className="text-green-600 mt-1">
+                          Daily: {formatCurrency(item.amount / 365)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Yearly Stats - UPDATED to include food costs */}
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-gray-50 rounded-lg p-4">
-                <p className="text-gray-500 text-sm">Monthly Average</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-gray-500 text-sm">Monthly Average</p>
+                  <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded">📅</span>
+                </div>
                 <p className="text-xl font-bold text-gray-900 mt-1">
                   {formatCurrency(dashboardData.yearlySummary.total / 12)}
                 </p>
@@ -761,17 +1145,25 @@ export default function ModeratorDashboard() {
               </div>
               
               <div className="bg-gray-50 rounded-lg p-4">
-                <p className="text-gray-500 text-sm">Year Comparison</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-gray-500 text-sm">Food Cost Average</p>
+                  <Utensils className="w-4 h-4 text-green-500" />
+                </div>
                 <p className="text-xl font-bold text-gray-900 mt-1">
-                  {formatCurrency(dashboardData.yearlySummary.total)}
+                  {formatCurrency(
+                    (dashboardData.yearlySummary.categoryTotals.find(c => c.category === 'Food Costs')?.amount || 0) / 12
+                  )}
                 </p>
                 <p className="text-sm text-gray-500 mt-1">
-                  Total for {dashboardData.selectedYearForYearly}
+                  Average monthly food costs
                 </p>
               </div>
               
               <div className="bg-gray-50 rounded-lg p-4">
-                <p className="text-gray-500 text-sm">Quarterly Average</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-gray-500 text-sm">Quarterly Average</p>
+                  <span className="text-xs px-2 py-1 bg-purple-100 text-purple-800 rounded">📊</span>
+                </div>
                 <p className="text-xl font-bold text-gray-900 mt-1">
                   {formatCurrency(dashboardData.yearlySummary.total / 4)}
                 </p>
@@ -784,7 +1176,76 @@ export default function ModeratorDashboard() {
         )}
       </div>
 
-    
+      {/* Quick Stats Cards - Added Food Costs */}
+      <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white p-4 rounded-lg shadow">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-gray-500">Total Monthly Food Costs</div>
+            <Utensils className="w-4 h-4 text-green-500" />
+          </div>
+          <div className="text-2xl font-bold text-green-600 mt-1">
+            {formatCurrency(dashboardData.monthlySummary.foodCosts)}
+          </div>
+          <div className="text-xs text-gray-400 mt-1">
+            {dashboardData.monthlySummary.foodCosts > 0 
+              ? `${calculatePercentage(dashboardData.monthlySummary.foodCosts)}% of monthly total`
+              : 'No food cost data'
+            }
+          </div>
+        </div>
+        
+        <div className="bg-white p-4 rounded-lg shadow">
+          <div className="text-sm text-gray-500">Daily Food Average</div>
+          <div className="text-2xl font-bold text-blue-600 mt-1">
+            {formatCurrency(dashboardData.monthlySummary.foodCosts / 30)}
+          </div>
+          <div className="text-xs text-gray-400 mt-1">
+            Based on 30 days
+          </div>
+        </div>
+        
+        <div className="bg-white p-4 rounded-lg shadow">
+          <div className="text-sm text-gray-500">Food % of Monthly Total</div>
+          <div className="text-2xl font-bold text-purple-600 mt-1">
+            {calculatePercentage(dashboardData.monthlySummary.foodCosts)}%
+          </div>
+          <div className="text-xs text-gray-400 mt-1">
+            For {MONTHS[dashboardData.selectedMonth - 1]}
+          </div>
+        </div>
+        
+        <div className="bg-white p-4 rounded-lg shadow">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-gray-500">Yearly Food Costs</div>
+            <div className="flex items-center">
+              <Utensils className="w-4 h-4 text-green-500" />
+              <Calendar className="w-4 h-4 text-gray-400 ml-1" />
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-orange-600 mt-1">
+            {formatCurrency(
+              dashboardData.yearlySummary.categoryTotals.find(item => item.category === 'Food Costs')?.amount || 0
+            )}
+          </div>
+          <div className="text-xs text-gray-400 mt-1">
+            Total for {dashboardData.selectedYearForYearly}
+          </div>
+        </div>
+      </div>
+
+      {/* Access Restrictions Note */}
+      <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+        <div className="flex items-center">
+          <Shield className="w-5 h-5 text-yellow-600 mr-2" />
+          <div>
+            <p className="text-yellow-700 font-medium">Moderator Access Restrictions</p>
+            <p className="text-yellow-600 text-sm mt-1">
+              As a moderator, you cannot access employee salary data, software subscription details, 
+              or other sensitive financial information. Contact an administrator for full access.
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

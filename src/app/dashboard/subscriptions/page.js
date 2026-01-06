@@ -1,10 +1,23 @@
-// "use client";
+
+
+
+
+
+// 'use client';
 
 // import React, { useState, useEffect, useMemo, useRef } from "react";
+// import { useRouter } from 'next/navigation';
 // import jsPDF from "jspdf";
 // import autoTable from "jspdf-autotable";
 
 // export default function SoftwareSubscriptionPage() {
+//   const router = useRouter();
+  
+//   // Authentication state
+//   const [user, setUser] = useState(null);
+//   const [authLoading, setAuthLoading] = useState(true);
+  
+//   // Form state
 //   const [subscriptions, setSubscriptions] = useState([
 //     {
 //       id: crypto.randomUUID(),
@@ -39,6 +52,9 @@
 //   // Ref for edit form
 //   const editFormRef = useRef(null);
 
+//   // API URL
+//   const API_URL = "http://localhost:5004/api";
+
 //   // Month names for display
 //   const monthNames = [
 //     "January", "February", "March", "April", "May", "June",
@@ -48,10 +64,17 @@
 //   // Currency symbol for Bangladeshi Taka
 //   const currencySymbol = "৳";
 
-//   // Fetch stored subscriptions on component mount
+//   // Check authentication on mount
 //   useEffect(() => {
-//     fetchStoredSubscriptions();
+//     checkAuthentication();
 //   }, []);
+
+//   // Initialize data after authentication
+//   useEffect(() => {
+//     if (user && !authLoading) {
+//       fetchStoredSubscriptions();
+//     }
+//   }, [user, authLoading]);
 
 //   // Update years and months when subscriptions change
 //   useEffect(() => {
@@ -63,7 +86,7 @@
 //             return date.getFullYear();
 //           })
 //         )
-//       ).sort((a, b) => b - a); // Sort descending (newest first)
+//       ).sort((a, b) => b - a);
 
 //       setYears(uniqueYears);
 
@@ -78,7 +101,7 @@
 //           new Set(
 //             yearSubscriptions.map(sub => {
 //               const date = new Date(sub.date);
-//               return date.getMonth() + 1; // Months are 0-indexed in JS
+//               return date.getMonth() + 1;
 //             })
 //           )
 //         ).sort((a, b) => a - b);
@@ -105,11 +128,72 @@
 //     }
 //   }, [editingId]);
 
+//   // Check if user is authenticated
+//   const checkAuthentication = () => {
+//     const userData = localStorage.getItem('user');
+//     const isAuth = localStorage.getItem('isAuthenticated');
+//     const authToken = localStorage.getItem('auth_token');
+    
+//     if (!userData || !isAuth || !authToken) {
+//       router.push('/');
+//       return;
+//     }
+    
+//     try {
+//       const parsedUser = JSON.parse(userData);
+      
+//       // Check if user has permission (admin or moderator)
+//       if (!['admin', 'moderator', 'user'].includes(parsedUser.role)) {
+//         setError('Access denied. You do not have permission to manage software subscriptions.');
+//         setTimeout(() => router.push('/dashboard'), 2000);
+//         return;
+//       }
+      
+//       setUser(parsedUser);
+//       setAuthLoading(false);
+//     } catch (error) {
+//       console.error('Error parsing user data:', error);
+//       router.push('/');
+//     }
+//   };
+
+//   // Function to handle logout
+//   const handleLogout = () => {
+//     // Clear authentication data
+//     localStorage.removeItem('auth_token');
+//     localStorage.removeItem('user');
+//     localStorage.removeItem('isAuthenticated');
+//     sessionStorage.clear();
+    
+//     // Clear any cookies if needed
+//     document.cookie.split(";").forEach(function(c) {
+//       document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+//     });
+    
+//     // Redirect to login page
+//     router.push('/');
+//   };
+
 //   const fetchStoredSubscriptions = async () => {
 //     setLoading(true);
 //     setError("");
 //     try {
-//       const response = await fetch('http://localhost:5004/api/software-subscriptions');
+//       const authToken = localStorage.getItem('auth_token');
+//       const response = await fetch(`${API_URL}/software-subscriptions`, {
+//         headers: {
+//           'Authorization': `Bearer ${authToken}`,
+//         },
+//         credentials: 'include'
+//       });
+      
+//       if (!response.ok) {
+//         if (response.status === 401 || response.status === 403) {
+//           handleLogout();
+//           return;
+//         }
+//         throw new Error(`HTTP error! status: ${response.status}`);
+//       }
+      
 //       const data = await response.json();
 //       if (data.success) {
 //         // Sort subscriptions by date in descending order (newest first)
@@ -135,7 +219,7 @@
 //     return storedSubscriptions.filter(sub => {
 //       const date = new Date(sub.date);
 //       const year = date.getFullYear().toString();
-//       const month = (date.getMonth() + 1).toString(); // Convert to 1-indexed month
+//       const month = (date.getMonth() + 1).toString();
 
 //       // Apply year filter
 //       if (selectedYear !== "all" && year !== selectedYear) {
@@ -183,6 +267,11 @@
 //       doc.text(`Report Type: ${filterInfo}`, 14, 36);
 //       doc.text(`Total Records: ${filteredSubscriptions.length}`, 14, 42);
       
+//       // Add user info
+//       if (user) {
+//         doc.text(`Generated by: ${user.name} (${user.role})`, 14, 48);
+//       }
+      
 //       // Prepare table data - Use "BDT" instead of ৳ symbol
 //       const tableData = filteredSubscriptions.map(subscription => [
 //         subscription.softwareName,
@@ -194,7 +283,7 @@
       
 //       // Add table using autoTable
 //       autoTable(doc, {
-//         startY: 50,
+//         startY: user ? 55 : 50,
 //         head: [['Software Name', 'Date', 'Amount (BDT)', 'Payment Method', 'Note']],
 //         body: tableData,
 //         headStyles: {
@@ -315,17 +404,28 @@
 //     }
 
 //     try {
-//       const response = await fetch('http://localhost:5004/api/software-subscriptions', {
+//       const authToken = localStorage.getItem('auth_token');
+//       const response = await fetch(`${API_URL}/software-subscriptions`, {
 //         method: 'POST',
 //         headers: {
 //           'Content-Type': 'application/json',
+//           'Authorization': `Bearer ${authToken}`,
 //         },
+//         credentials: 'include',
 //         body: JSON.stringify(validSubscriptions),
 //       });
 
+//       if (!response.ok) {
+//         if (response.status === 401 || response.status === 403) {
+//           handleLogout();
+//           return;
+//         }
+//         throw new Error(`HTTP error! status: ${response.status}`);
+//       }
+
 //       const data = await response.json();
 
-//       if (response.ok && data.success) {
+//       if (data.success) {
 //         setSuccess(`Successfully saved ${data.data.length} subscription(s)`);
 //         // Reset form
 //         setSubscriptions([{
@@ -390,11 +490,14 @@
 //     setSuccess("");
 
 //     try {
-//       const response = await fetch(`http://localhost:5004/api/software-subscriptions/${editingId}`, {
+//       const authToken = localStorage.getItem('auth_token');
+//       const response = await fetch(`${API_URL}/software-subscriptions/${editingId}`, {
 //         method: 'PUT',
 //         headers: {
 //           'Content-Type': 'application/json',
+//           'Authorization': `Bearer ${authToken}`,
 //         },
+//         credentials: 'include',
 //         body: JSON.stringify({
 //           softwareName: editForm.softwareName,
 //           date: editForm.date,
@@ -404,9 +507,17 @@
 //         }),
 //       });
 
+//       if (!response.ok) {
+//         if (response.status === 401 || response.status === 403) {
+//           handleLogout();
+//           return;
+//         }
+//         throw new Error(`HTTP error! status: ${response.status}`);
+//       }
+
 //       const data = await response.json();
 
-//       if (response.ok && data.success) {
+//       if (data.success) {
 //         setSuccess('Subscription updated successfully');
 //         // Refresh the list
 //         fetchStoredSubscriptions();
@@ -434,13 +545,26 @@
 //     if (!window.confirm('Are you sure you want to delete this subscription?')) return;
 
 //     try {
-//       const response = await fetch(`http://localhost:5004/api/software-subscriptions/${id}`, {
+//       const authToken = localStorage.getItem('auth_token');
+//       const response = await fetch(`${API_URL}/software-subscriptions/${id}`, {
 //         method: 'DELETE',
+//         headers: {
+//           'Authorization': `Bearer ${authToken}`,
+//         },
+//         credentials: 'include'
 //       });
+
+//       if (!response.ok) {
+//         if (response.status === 401 || response.status === 403) {
+//           handleLogout();
+//           return;
+//         }
+//         throw new Error(`HTTP error! status: ${response.status}`);
+//       }
 
 //       const data = await response.json();
 
-//       if (response.ok && data.success) {
+//       if (data.success) {
 //         setSuccess('Subscription deleted successfully');
 //         // Refresh the list
 //         fetchStoredSubscriptions();
@@ -483,7 +607,7 @@
 //   // Handle year filter change
 //   const handleYearChange = (e) => {
 //     setSelectedYear(e.target.value);
-//     setSelectedMonth("all"); // Reset month when year changes
+//     setSelectedMonth("all");
 //   };
 
 //   // Handle month filter change
@@ -505,12 +629,63 @@
 //     }, 0);
 //   };
 
+//   // Show loading while auth is being checked
+//   if (authLoading) {
+//     return (
+//       <div className="min-h-screen flex items-center justify-center">
+//         <div className="text-center">
+//           <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+//           <p className="text-gray-600">Checking authentication...</p>
+//         </div>
+//       </div>
+//     );
+//   }
+
+//   if (!user) {
+//     return null; // Will redirect
+//   }
+
 //   return (
 //     <div className="min-h-screen bg-gray-100 p-4 md:p-6">
 //       <div className="max-w-7xl mx-auto">
-//         <h2 className="text-2xl font-semibold text-center mb-6">
-//           Software Subscriptions Management
-//         </h2>
+//         {/* Header with User Info */}
+//         <div className="mb-8">
+//           <div className="flex justify-between items-center mb-4">
+//             <div>
+//               <h1 className="text-3xl font-bold text-gray-800">Software Subscriptions Management</h1>
+//               <p className="text-gray-600 mt-2">Track and manage your software subscription expenses</p>
+//             </div>
+//             <div className="flex items-center space-x-4">
+//               <div className="text-right">
+//                 <p className="text-sm text-gray-600">Logged in as: <span className="font-semibold">{user.name}</span></p>
+//                 <p className="text-xs text-gray-500">Role: <span className="font-medium capitalize">{user.role}</span></p>
+//               </div>
+//               <button
+//                 onClick={handleLogout}
+//                 className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
+//               >
+//                 Logout
+//               </button>
+//             </div>
+//           </div>
+
+//           {/* User Info Banner */}
+//           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+//             <div className="flex items-center justify-between">
+//               <div className="flex items-center space-x-4">
+//                 <div className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+//                   Software Subscriptions Management
+//                 </div>
+//                 <div className="text-sm text-blue-700">
+//                   Manage software subscription costs and renewals
+//                 </div>
+//               </div>
+//               <div className="text-sm text-blue-600">
+//                 <span className="font-medium">Access Level:</span> {user.role}
+//               </div>
+//             </div>
+//           </div>
+//         </div>
 
 //         {/* Form Section */}
 //         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
@@ -1142,7 +1317,6 @@
               
 //               {/* Summary Stats */}
 //               <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-//                 {/* Removed Average per Subscription stat */}
 //                 <div className="bg-blue-50 p-4 rounded-lg">
 //                   <h4 className="text-sm font-medium text-blue-900">
 //                     {selectedYear !== "all" || selectedMonth !== "all" ? "Filtered Subscriptions" : "Total Subscriptions"}
@@ -1171,8 +1345,6 @@
 // }
 
 
-
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
@@ -1196,6 +1368,8 @@ export default function SoftwareSubscriptionPage() {
       date: "",
       paymentMethod: "",
       note: "",
+      durationNumber: "",
+      durationUnit: "month", // Default value
     },
   ]);
 
@@ -1210,7 +1384,9 @@ export default function SoftwareSubscriptionPage() {
     amount: "",
     date: "",
     paymentMethod: "",
-    note: ""
+    note: "",
+    durationNumber: "",
+    durationUnit: "month"
   });
 
   // Filter states
@@ -1229,6 +1405,14 @@ export default function SoftwareSubscriptionPage() {
   const monthNames = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
+  ];
+
+  // Duration unit options
+  const durationUnits = [
+    { value: "day", label: "Day(s)" },
+    { value: "week", label: "Week(s)" },
+    { value: "month", label: "Month(s)" },
+    { value: "year", label: "Year(s)" }
   ];
 
   // Currency symbol for Bangladeshi Taka
@@ -1448,13 +1632,16 @@ export default function SoftwareSubscriptionPage() {
         new Date(subscription.date).toLocaleDateString(),
         `BDT ${subscription.amount.toFixed(2)}`,
         subscription.paymentMethod,
+        subscription.durationNumber && subscription.durationUnit 
+          ? `${subscription.durationNumber} ${subscription.durationUnit}${subscription.durationNumber > 1 ? 's' : ''}`
+          : "-",
         subscription.note || "-"
       ]);
       
       // Add table using autoTable
       autoTable(doc, {
         startY: user ? 55 : 50,
-        head: [['Software Name', 'Date', 'Amount (BDT)', 'Payment Method', 'Note']],
+        head: [['Software Name', 'Date', 'Amount (BDT)', 'Payment Method', 'Duration', 'Note']],
         body: tableData,
         headStyles: {
           fillColor: [41, 128, 185],
@@ -1466,11 +1653,12 @@ export default function SoftwareSubscriptionPage() {
           cellPadding: 3
         },
         columnStyles: {
-          0: { cellWidth: 40 },
-          1: { cellWidth: 30 },
-          2: { cellWidth: 30 },
-          3: { cellWidth: 35 },
-          4: { cellWidth: 40 }
+          0: { cellWidth: 35 },
+          1: { cellWidth: 25 },
+          2: { cellWidth: 25 },
+          3: { cellWidth: 30 },
+          4: { cellWidth: 25 },
+          5: { cellWidth: 35 }
         },
         didDrawPage: function (data) {
           // Footer
@@ -1547,6 +1735,8 @@ export default function SoftwareSubscriptionPage() {
         date: "",
         paymentMethod: "",
         note: "",
+        durationNumber: "",
+        durationUnit: "month",
       },
     ]);
   };
@@ -1605,6 +1795,8 @@ export default function SoftwareSubscriptionPage() {
           date: "",
           paymentMethod: "",
           note: "",
+          durationNumber: "",
+          durationUnit: "month",
         }]);
         // Refresh stored subscriptions
         fetchStoredSubscriptions();
@@ -1631,7 +1823,9 @@ export default function SoftwareSubscriptionPage() {
       date: new Date(subscription.date).toISOString().split('T')[0],
       amount: subscription.amount.toString(),
       paymentMethod: subscription.paymentMethod,
-      note: subscription.note || ""
+      note: subscription.note || "",
+      durationNumber: subscription.durationNumber?.toString() || "",
+      durationUnit: subscription.durationUnit || "month"
     });
   };
 
@@ -1642,7 +1836,9 @@ export default function SoftwareSubscriptionPage() {
       amount: "",
       date: "",
       paymentMethod: "",
-      note: ""
+      note: "",
+      durationNumber: "",
+      durationUnit: "month"
     });
   };
 
@@ -1673,7 +1869,9 @@ export default function SoftwareSubscriptionPage() {
           date: editForm.date,
           amount: parseFloat(editForm.amount),
           paymentMethod: editForm.paymentMethod,
-          note: editForm.note
+          note: editForm.note,
+          durationNumber: editForm.durationNumber ? parseInt(editForm.durationNumber) : null,
+          durationUnit: editForm.durationUnit
         }),
       });
 
@@ -1698,7 +1896,9 @@ export default function SoftwareSubscriptionPage() {
           amount: "",
           date: "",
           paymentMethod: "",
-          note: ""
+          note: "",
+          durationNumber: "",
+          durationUnit: "month"
         });
       } else {
         setError(data.message || 'Failed to update subscription');
@@ -1757,6 +1957,18 @@ export default function SoftwareSubscriptionPage() {
       month: 'short',
       day: 'numeric'
     });
+  };
+
+  // Format duration for display
+  const formatDuration = (durationNumber, durationUnit) => {
+    if (!durationNumber || !durationUnit) return "-";
+    
+    const unitLabel = durationUnit === "day" ? "day" :
+                     durationUnit === "week" ? "week" :
+                     durationUnit === "month" ? "month" : "year";
+    
+    const plural = durationNumber > 1 ? "s" : "";
+    return `${durationNumber} ${unitLabel}${plural}`;
   };
 
   // Format currency in Bangladeshi Taka (৳)
@@ -1875,19 +2087,20 @@ export default function SoftwareSubscriptionPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Header Row */}
-            <div className="hidden md:grid md:grid-cols-12 gap-3 text-sm font-semibold text-gray-600 px-1">
+            <div className="hidden md:grid md:grid-cols-13 gap-3 text-sm font-semibold text-gray-600 px-1">
               <div className="col-span-3">Software Name</div>
               <div className="col-span-2">Amount (৳)</div>
               <div className="col-span-2">Date</div>
-              <div className="col-span-2">Payment Method</div>
-              <div className="col-span-2">Note (Optional)</div>
+              <div className="col-span-2">Pay Method</div>
+              <div className="col-span-2">Duration</div>
+              <div className="col-span-1">Note</div>
               <div className="col-span-1 text-center">Action</div>
             </div>
 
             {subscriptions.map((sub) => (
               <div
                 key={sub.id}
-                className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-3 items-center p-3 md:p-0 md:border-0 border border-gray-200 rounded-md mb-3 md:mb-0"
+                className="grid grid-cols-1 md:grid-cols-13 gap-3 md:gap-3 items-center p-3 md:p-0 md:border-0 border border-gray-200 rounded-md mb-3 md:mb-0"
               >
                 {/* Mobile View - Vertical Layout */}
                 <div className="md:hidden space-y-3 w-full">
@@ -1959,6 +2172,44 @@ export default function SoftwareSubscriptionPage() {
                         <option value="Bank Transfer">Bank Transfer</option>
                         <option value="Mobile Banking">Mobile Banking</option>
                         <option value="Card">Card</option>
+                      </select>
+                    </div>
+                  </div>
+                  
+                  {/* Duration Fields - Mobile */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Duration Number
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="e.g., 1"
+                        value={sub.durationNumber}
+                        onChange={(e) =>
+                          updateField(sub.id, "durationNumber", e.target.value)
+                        }
+                        className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        min="1"
+                        step="1"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Duration Unit
+                      </label>
+                      <select
+                        value={sub.durationUnit}
+                        onChange={(e) =>
+                          updateField(sub.id, "durationUnit", e.target.value)
+                        }
+                        className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        {durationUnits.map(unit => (
+                          <option key={unit.value} value={unit.value}>
+                            {unit.label}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>
@@ -2054,11 +2305,45 @@ export default function SoftwareSubscriptionPage() {
                   </select>
                 </div>
 
-                {/* Note (Optional) */}
+                {/* Duration Fields - Desktop */}
                 <div className="hidden md:block col-span-2">
+                  <div className="flex space-x-2">
+                    <div className="flex-1">
+                      <input
+                        type="number"
+                        placeholder="Number"
+                        value={sub.durationNumber}
+                        onChange={(e) =>
+                          updateField(sub.id, "durationNumber", e.target.value)
+                        }
+                        className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        min="1"
+                        step="1"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <select
+                        value={sub.durationUnit}
+                        onChange={(e) =>
+                          updateField(sub.id, "durationUnit", e.target.value)
+                        }
+                        className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      >
+                        {durationUnits.map(unit => (
+                          <option key={unit.value} value={unit.value}>
+                            {unit.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Note (Optional) */}
+                <div className="hidden md:block col-span-1">
                   <input
                     type="text"
-                    placeholder="Optional note"
+                    placeholder="Note"
                     value={sub.note}
                     onChange={(e) =>
                       updateField(sub.id, "note", e.target.value)
@@ -2142,7 +2427,7 @@ export default function SoftwareSubscriptionPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-12 gap-3 items-start">
+            <div className="grid grid-cols-13 gap-3 items-start">
               {/* Software Name */}
               <div className="col-span-3">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -2193,7 +2478,7 @@ export default function SoftwareSubscriptionPage() {
               {/* Payment Method */}
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Payment Method *
+                  Pay Method *
                 </label>
                 <select
                   value={editForm.paymentMethod}
@@ -2209,17 +2494,50 @@ export default function SoftwareSubscriptionPage() {
                 </select>
               </div>
 
-              {/* Note */}
+              {/* Duration Fields */}
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Note (Optional)
+                  Duration
+                </label>
+                <div className="flex space-x-2">
+                  <div className="flex-1">
+                    <input
+                      type="number"
+                      placeholder="Number"
+                      value={editForm.durationNumber}
+                      onChange={(e) => setEditForm({...editForm, durationNumber: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      min="1"
+                      step="1"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <select
+                      value={editForm.durationUnit}
+                      onChange={(e) => setEditForm({...editForm, durationUnit: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {durationUnits.map(unit => (
+                        <option key={unit.value} value={unit.value}>
+                          {unit.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Note */}
+              <div className="col-span-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Note
                 </label>
                 <input
                   type="text"
                   value={editForm.note}
                   onChange={(e) => setEditForm({...editForm, note: e.target.value})}
                   className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Optional note"
+                  placeholder="Optional"
                 />
               </div>
 
@@ -2403,6 +2721,9 @@ export default function SoftwareSubscriptionPage() {
                         Payment Method
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Duration
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Note
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -2435,6 +2756,11 @@ export default function SoftwareSubscriptionPage() {
                           <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
                             {subscription.paymentMethod}
                           </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            {formatDuration(subscription.durationNumber, subscription.durationUnit)}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-600 max-w-xs truncate">
@@ -2477,7 +2803,7 @@ export default function SoftwareSubscriptionPage() {
                           {formatCurrency(calculateTotal())}
                         </div>
                       </td>
-                      <td colSpan="3" className="px-6 py-4 text-sm text-gray-500">
+                      <td colSpan="4" className="px-6 py-4 text-sm text-gray-500">
                         {filteredSubscriptions.length} subscription(s)
                       </td>
                     </tr>

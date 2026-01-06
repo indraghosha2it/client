@@ -2596,7 +2596,6 @@
 
 
 
-
 // app/dashboard/page.js
 'use client';
 
@@ -2613,7 +2612,8 @@ import {
   PlusCircle,
   Tag,
   AlertCircle,
-  FileDown
+  FileDown,
+  Utensils  // Added for food cost icon
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -2679,6 +2679,7 @@ export default function DashboardPage() {
       softwareSubscriptions: 0,
       transportExpenses: 0,
       extraExpenses: 0,
+      foodCosts: 0,  // Added food costs
       categoryBreakdown: []
     },
     
@@ -2779,7 +2780,7 @@ export default function DashboardPage() {
     return total > 0 ? ((amount / total) * 100).toFixed(1) : 0;
   };
 
-  // Fetch monthly summary data
+  // Fetch monthly summary data (UPDATED to include food costs)
   const fetchMonthlySummary = async () => {
     if (!user) return;
     
@@ -2789,7 +2790,7 @@ export default function DashboardPage() {
       const { selectedYear, selectedMonth } = dashboardData;
       const headers = getAuthHeaders();
       
-      // Fetch all data
+      // Fetch all data including food costs
       const responses = await Promise.allSettled([
         fetch(`${API_BASE_URL}/employees`, { headers }),
         fetch(`${API_BASE_URL}/office-rents`, { headers }),
@@ -2797,7 +2798,8 @@ export default function DashboardPage() {
         fetch(`${API_BASE_URL}/office-supplies`, { headers }),
         fetch(`${API_BASE_URL}/software-subscriptions`, { headers }),
         fetch(`${API_BASE_URL}/transport-expenses`, { headers }),
-        fetch(`${API_BASE_URL}/extra-expenses`, { headers })
+        fetch(`${API_BASE_URL}/extra-expenses`, { headers }),
+        fetch(`${API_BASE_URL}/food-costs`, { headers })  // Added food costs
       ]);
 
       // Check for authentication errors
@@ -2842,8 +2844,9 @@ export default function DashboardPage() {
       const monthSoftware = filterByMonth(data[4]?.data, 'date');
       const monthTransport = filterByMonth(data[5]?.data, 'date');
       const monthExtra = filterByMonth(data[6]?.data, 'date');
+      const monthFoodCosts = filterByMonth(data[7]?.data, 'date');  // Added food costs
 
-      // Calculate totals
+      // Calculate totals including food costs
       const employeeSalaries = monthEmployees.reduce((sum, emp) => sum + (emp.calculatedSalary || emp.salary || 0), 0);
       const officeRent = monthRents.reduce((sum, rent) => sum + (rent.rent || 0), 0);
       const utilities = monthBills.reduce((sum, bill) => sum + (bill.amount || 0), 0);
@@ -2851,19 +2854,21 @@ export default function DashboardPage() {
       const softwareSubscriptions = monthSoftware.reduce((sum, software) => sum + (software.amount || 0), 0);
       const transportExpenses = monthTransport.reduce((sum, transport) => sum + (transport.cost || 0), 0);
       const extraExpenses = monthExtra.reduce((sum, extra) => sum + (extra.amount || 0), 0);
+      const foodCosts = monthFoodCosts.reduce((sum, food) => sum + (food.cost || 0), 0);  // Added food costs
 
       const total = employeeSalaries + officeRent + utilities + officeSupplies + 
-                    softwareSubscriptions + transportExpenses + extraExpenses;
+                    softwareSubscriptions + transportExpenses + extraExpenses + foodCosts;
 
-      // Create category breakdown for chart
+      // Create category breakdown for chart including food costs
       const categoryBreakdown = [
         { category: 'Employee Salaries', amount: employeeSalaries, color: '#3B82F6' },
-        { category: 'Office Rent', amount: officeRent, color: '#10B981' },
+        { category: 'House Rent', amount: officeRent, color: '#10B981' },
         { category: 'Utilities', amount: utilities, color: '#F59E0B' },
         { category: 'Office Supplies', amount: officeSupplies, color: '#8B5CF6' },
         { category: 'Software Subscriptions', amount: softwareSubscriptions, color: '#EC4899' },
         { category: 'Transport Expenses', amount: transportExpenses, color: '#06B6D4' },
-        { category: 'Extra Expenses', amount: extraExpenses, color: '#EF4444' }
+        { category: 'Extra Expenses', amount: extraExpenses, color: '#EF4444' },
+        { category: 'Food Costs', amount: foodCosts, color: '#22C55E' }  // Green color for food
       ].filter(item => item.amount > 0);
 
       setDashboardData(prev => ({
@@ -2877,6 +2882,7 @@ export default function DashboardPage() {
           softwareSubscriptions,
           transportExpenses,
           extraExpenses,
+          foodCosts,  // Added food costs
           categoryBreakdown
         },
         isLoading: false
@@ -2899,7 +2905,7 @@ export default function DashboardPage() {
     }
   };
 
-  // Fetch yearly summary data
+  // Fetch yearly summary data (UPDATED to include food costs)
   const fetchYearlySummary = async () => {
     if (!user) return;
     
@@ -2909,7 +2915,7 @@ export default function DashboardPage() {
       const { selectedYearForYearly } = dashboardData;
       const headers = getAuthHeaders();
       
-      // Fetch all data
+      // Fetch all data including food costs
       const responses = await Promise.allSettled([
         fetch(`${API_BASE_URL}/employees`, { headers }),
         fetch(`${API_BASE_URL}/office-rents`, { headers }),
@@ -2917,7 +2923,8 @@ export default function DashboardPage() {
         fetch(`${API_BASE_URL}/office-supplies`, { headers }),
         fetch(`${API_BASE_URL}/software-subscriptions`, { headers }),
         fetch(`${API_BASE_URL}/transport-expenses`, { headers }),
-        fetch(`${API_BASE_URL}/extra-expenses`, { headers })
+        fetch(`${API_BASE_URL}/extra-expenses`, { headers }),
+        fetch(`${API_BASE_URL}/food-costs`, { headers })  // Added food costs
       ]);
 
       // Check for authentication errors
@@ -2962,8 +2969,9 @@ export default function DashboardPage() {
       const yearSoftware = filterByYear(data[4]?.data, 'date');
       const yearTransport = filterByYear(data[5]?.data, 'date');
       const yearExtra = filterByYear(data[6]?.data, 'date');
+      const yearFoodCosts = filterByYear(data[7]?.data, 'date');  // Added food costs
 
-      // Calculate monthly breakdown
+      // Calculate monthly breakdown including food costs
       const monthlyBreakdown = Array.from({ length: 12 }, (_, i) => {
         const month = i + 1;
         const monthName = MONTHS[i].substring(0, 3);
@@ -2983,6 +2991,7 @@ export default function DashboardPage() {
         const monthSoftware = filterByMonth(yearSoftware, 'date');
         const monthTransport = filterByMonth(yearTransport, 'date');
         const monthExtra = filterByMonth(yearExtra, 'date');
+        const monthFoodCosts = filterByMonth(yearFoodCosts, 'date');  // Added food costs
 
         const total = 
           monthEmployees.reduce((sum, emp) => sum + (emp.calculatedSalary || emp.salary || 0), 0) +
@@ -2991,7 +3000,8 @@ export default function DashboardPage() {
           monthSupplies.reduce((sum, supply) => sum + (supply.price || 0), 0) +
           monthSoftware.reduce((sum, software) => sum + (software.amount || 0), 0) +
           monthTransport.reduce((sum, transport) => sum + (transport.cost || 0), 0) +
-          monthExtra.reduce((sum, extra) => sum + (extra.amount || 0), 0);
+          monthExtra.reduce((sum, extra) => sum + (extra.amount || 0), 0) +
+          monthFoodCosts.reduce((sum, food) => sum + (food.cost || 0), 0);  // Added food costs
 
         return {
           month,
@@ -3003,19 +3013,21 @@ export default function DashboardPage() {
           officeSupplies: monthSupplies.reduce((sum, supply) => sum + (supply.price || 0), 0),
           softwareSubscriptions: monthSoftware.reduce((sum, software) => sum + (software.amount || 0), 0),
           transportExpenses: monthTransport.reduce((sum, transport) => sum + (transport.cost || 0), 0),
-          extraExpenses: monthExtra.reduce((sum, extra) => sum + (extra.amount || 0), 0)
+          extraExpenses: monthExtra.reduce((sum, extra) => sum + (extra.amount || 0), 0),
+          foodCosts: monthFoodCosts.reduce((sum, food) => sum + (food.cost || 0), 0)  // Added food costs
         };
       });
 
-      // Calculate category totals for the year
+      // Calculate category totals for the year including food costs
       const categoryTotals = [
         { category: 'Employee Salaries', amount: yearEmployees.reduce((sum, emp) => sum + (emp.calculatedSalary || emp.salary || 0), 0), color: '#3B82F6' },
-        { category: 'Office Rent', amount: yearRents.reduce((sum, rent) => sum + (rent.rent || 0), 0), color: '#10B981' },
+        { category: 'House Rent', amount: yearRents.reduce((sum, rent) => sum + (rent.rent || 0), 0), color: '#10B981' },
         { category: 'Utilities', amount: yearBills.reduce((sum, bill) => sum + (bill.amount || 0), 0), color: '#F59E0B' },
         { category: 'Office Supplies', amount: yearSupplies.reduce((sum, supply) => sum + (supply.price || 0), 0), color: '#8B5CF6' },
         { category: 'Software Subscriptions', amount: yearSoftware.reduce((sum, software) => sum + (software.amount || 0), 0), color: '#EC4899' },
         { category: 'Transport Expenses', amount: yearTransport.reduce((sum, transport) => sum + (transport.cost || 0), 0), color: '#06B6D4' },
-        { category: 'Extra Expenses', amount: yearExtra.reduce((sum, extra) => sum + (extra.amount || 0), 0), color: '#EF4444' }
+        { category: 'Extra Expenses', amount: yearExtra.reduce((sum, extra) => sum + (extra.amount || 0), 0), color: '#EF4444' },
+        { category: 'Food Costs', amount: yearFoodCosts.reduce((sum, food) => sum + (food.cost || 0), 0), color: '#22C55E' }  // Added food costs
       ].filter(item => item.amount > 0);
 
       const total = categoryTotals.reduce((sum, item) => sum + item.amount, 0);
@@ -3047,7 +3059,7 @@ export default function DashboardPage() {
     }
   };
 
-  // Fetch recent expenses
+  // Fetch recent expenses (UPDATED to include food costs)
   const fetchRecentExpenses = async () => {
     if (!user) return;
     
@@ -3080,7 +3092,7 @@ export default function DashboardPage() {
         }
       };
 
-      // Fetch all expense types
+      // Fetch all expense types including food costs
       const responses = await Promise.allSettled([
         fetch(`${API_BASE_URL}/employees`, { headers }),
         fetch(`${API_BASE_URL}/office-rents`, { headers }),
@@ -3088,7 +3100,8 @@ export default function DashboardPage() {
         fetch(`${API_BASE_URL}/office-supplies`, { headers }),
         fetch(`${API_BASE_URL}/software-subscriptions`, { headers }),
         fetch(`${API_BASE_URL}/transport-expenses`, { headers }),
-        fetch(`${API_BASE_URL}/extra-expenses`, { headers })
+        fetch(`${API_BASE_URL}/extra-expenses`, { headers }),
+        fetch(`${API_BASE_URL}/food-costs`, { headers })  // Added food costs
       ]);
 
       const data = await Promise.all(
@@ -3104,14 +3117,15 @@ export default function DashboardPage() {
         })
       );
 
-      // Add all expenses
+      // Add all expenses including food costs
       addExpenses(data[0], 'Employee Salary', 'name', 'calculatedSalary', 'salaryDate');
-      addExpenses(data[1], 'Office Rent', 'type', 'rent', 'date');
+      addExpenses(data[1], 'House Rent', 'type', 'rent', 'date');
       addExpenses(data[2], 'Utility Bill', 'name', 'amount', 'date');
       addExpenses(data[3], 'Office Supply', 'name', 'price', 'date');
       addExpenses(data[4], 'Software', 'softwareName', 'amount', 'date');
       addExpenses(data[5], 'Transport', 'transportName', 'cost', 'date');
       addExpenses(data[6], 'Extra Expense', 'expenseName', 'amount', 'date');
+      addExpenses(data[7], 'Food Cost', 'note', 'cost', 'date');  // Added food costs (using note as name)
 
       // Sort by date descending and take top 10
       recentExpenses.sort((a, b) => b.date - a.date);
@@ -3127,7 +3141,7 @@ export default function DashboardPage() {
     }
   };
 
-  // Download Monthly Summary PDF
+  // Download Monthly Summary PDF (UPDATED to include food costs)
   const downloadMonthlyPDF = async () => {
     if (!pdfReady || downloadingPDF.monthly || dashboardData.isLoading || !dashboardData.monthlySummary.categoryBreakdown.length) {
       alert('Please wait for PDF libraries to load or ensure there is data available.');
@@ -3170,18 +3184,19 @@ export default function DashboardPage() {
       doc.setTextColor(30, 64, 175);
       doc.text(`Total Monthly Expenses: ${formatCurrency(summary.total)}`, 105, 50, { align: 'center' });
       
-      // Add summary table using autoTable
+      // Add summary table using autoTable (UPDATED to include food costs)
       autoTable(doc, {
         startY: 60,
         head: [['Category', 'Amount (BDT)', 'Percentage']],
         body: [
           ['Employee Salaries', formatAmount(summary.employeeSalaries), `${calculatePercentage(summary.employeeSalaries)}%`],
-          ['Office Rent', formatAmount(summary.officeRent), `${calculatePercentage(summary.officeRent)}%`],
+          ['House Rent', formatAmount(summary.officeRent), `${calculatePercentage(summary.officeRent)}%`],
           ['Utilities', formatAmount(summary.utilities), `${calculatePercentage(summary.utilities)}%`],
           ['Office Supplies', formatAmount(summary.officeSupplies), `${calculatePercentage(summary.officeSupplies)}%`],
           ['Software Subscriptions', formatAmount(summary.softwareSubscriptions), `${calculatePercentage(summary.softwareSubscriptions)}%`],
           ['Transport Expenses', formatAmount(summary.transportExpenses), `${calculatePercentage(summary.transportExpenses)}%`],
           ['Extra Expenses', formatAmount(summary.extraExpenses), `${calculatePercentage(summary.extraExpenses)}%`],
+          ['Food Costs', formatAmount(summary.foodCosts), `${calculatePercentage(summary.foodCosts)}%`],  // Added food costs
           ['', '', ''],
           ['TOTAL', formatAmount(summary.total), '100%']
         ],
@@ -3217,7 +3232,7 @@ export default function DashboardPage() {
     }
   };
 
-  // Download Yearly Summary PDF
+  // Download Yearly Summary PDF (UPDATED to include food costs)
   const downloadYearlyPDF = async () => {
     if (!pdfReady || downloadingPDF.yearly || dashboardData.isLoadingYearly || !dashboardData.yearlySummary.monthlyBreakdown.length) {
       alert('Please wait for PDF libraries to load or ensure there is data available.');
@@ -3259,17 +3274,17 @@ export default function DashboardPage() {
       doc.setTextColor(34, 197, 94);
       doc.text(`Total Yearly Expenses: ${formatCurrency(summary.total)}`, 105, 50, { align: 'center' });
       
-      // Add monthly breakdown table
+      // Add monthly breakdown table (UPDATED to include food costs)
       autoTable(doc, {
         startY: 60,
-        head: [['Month', 'Total (BDT)', 'Employee Salaries', 'Office Rent', 'Utilities', 'Other']],
+        head: [['Month', 'Total (BDT)', 'Employee Salaries', 'House Rent', 'Utilities', 'Other']],
         body: summary.monthlyBreakdown.map(month => [
           month.monthName,
           formatAmount(month.total),
           formatAmount(month.employeeSalaries),
           formatAmount(month.officeRent),
           formatAmount(month.utilities),
-          formatAmount(month.officeSupplies + month.softwareSubscriptions + month.transportExpenses + month.extraExpenses)
+          formatAmount(month.officeSupplies + month.softwareSubscriptions + month.transportExpenses + month.extraExpenses + month.foodCosts)
         ]),
         theme: 'grid',
         headStyles: { fillColor: [34, 197, 94], textColor: 255, fontSize: 11 },
@@ -3288,7 +3303,7 @@ export default function DashboardPage() {
       // Add a new page for category totals
       doc.addPage();
       
-      // Add category totals
+      // Add category totals (UPDATED to include food costs)
       doc.setFontSize(16);
       doc.setTextColor(40, 40, 40);
       doc.text('Yearly Category Totals', 105, 20, { align: 'center' });
@@ -3332,6 +3347,10 @@ export default function DashboardPage() {
         // Calculate average monthly expense
         const avgMonthly = summary.total / 12;
         doc.text(`Average Monthly Expense: ${formatCurrency(avgMonthly)}`, 15, finalY + 35);
+        
+        // Calculate average food costs per month
+        const totalFoodCosts = summary.categoryTotals.find(item => item.category === 'Food Costs')?.amount || 0;
+        doc.text(`Average Monthly Food Costs: ${formatCurrency(totalFoodCosts / 12)}`, 15, finalY + 45);
       }
       
       // Add footer to all pages
@@ -3543,17 +3562,21 @@ export default function DashboardPage() {
             {/* Detailed Monthly Breakdown */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { label: 'Employee Salaries', value: dashboardData.monthlySummary.employeeSalaries, color: 'blue' },
-                { label: 'Office Rent', value: dashboardData.monthlySummary.officeRent, color: 'green' },
-                { label: 'Utilities', value: dashboardData.monthlySummary.utilities, color: 'yellow' },
-                { label: 'Office Supplies', value: dashboardData.monthlySummary.officeSupplies, color: 'purple' },
-                { label: 'Software Subscriptions', value: dashboardData.monthlySummary.softwareSubscriptions, color: 'pink' },
-                { label: 'Transport Expenses', value: dashboardData.monthlySummary.transportExpenses, color: 'cyan' },
-                { label: 'Extra Expenses', value: dashboardData.monthlySummary.extraExpenses, color: 'red' },
+                { label: 'Employee Salaries', value: dashboardData.monthlySummary.employeeSalaries, color: 'blue', icon: '👨‍💼' },
+                { label: 'House Rent', value: dashboardData.monthlySummary.officeRent, color: 'green', icon: '🏢' },
+                { label: 'Utilities', value: dashboardData.monthlySummary.utilities, color: 'yellow', icon: '💡' },
+                { label: 'Office Supplies', value: dashboardData.monthlySummary.officeSupplies, color: 'purple', icon: '📦' },
+                { label: 'Software Subscriptions', value: dashboardData.monthlySummary.softwareSubscriptions, color: 'pink', icon: '💻' },
+                { label: 'Transport Expenses', value: dashboardData.monthlySummary.transportExpenses, color: 'cyan', icon: '🚗' },
+                { label: 'Extra Expenses', value: dashboardData.monthlySummary.extraExpenses, color: 'red', icon: '📝' },
+                { label: 'Food Costs', value: dashboardData.monthlySummary.foodCosts, color: 'green', icon: '🍽️' },  // Added food costs
               ].map((item, index) => (
                 <div key={index} className="bg-gray-50 rounded-lg p-4">
-                  <p className="text-gray-500 text-sm">{item.label}</p>
-                  <p className="text-xl font-bold text-gray-900 mt-1">
+                  <div className="flex items-center mb-2">
+                    <span className="text-xl mr-2">{item.icon}</span>
+                    <p className="text-gray-500 text-sm">{item.label}</p>
+                  </div>
+                  <p className="text-xl font-bold text-gray-900">
                     {formatCurrency(item.value)}
                   </p>
                   <p className="text-sm text-gray-400 mt-1">
@@ -3696,11 +3719,14 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Recent Expenses Section */}
+      {/* Recent Expenses Section (Includes Food Costs) */}
       <div className="bg-white rounded-xl shadow-lg p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-gray-900">Recent Expenses (Past 30 Days)</h2>
-          <FileText className="w-6 h-6 text-gray-500" />
+          <div className="flex items-center">
+            <FileText className="w-6 h-6 text-gray-500 mr-2" />
+            <Utensils className="w-5 h-5 text-green-500" />
+          </div>
         </div>
         
         <div className="space-y-4">
@@ -3709,7 +3735,14 @@ export default function DashboardPage() {
               <div key={expense.id} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                 <div className="flex justify-between items-center">
                   <div>
-                    <h4 className="font-semibold text-gray-900">{expense.category}</h4>
+                    <div className="flex items-center">
+                      <h4 className="font-semibold text-gray-900">{expense.category}</h4>
+                      {expense.category === 'Food Cost' && (
+                        <span className="ml-2 px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
+                          🍽️ Food
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-gray-500 mt-1">
                       {expense.name} • {expense.payment}
                     </p>
@@ -3740,55 +3773,54 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="mt-8 bg-white rounded-xl shadow-lg p-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-6">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <button 
-            onClick={() => window.location.href = '/employees'}
-            className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all group"
-          >
-            <div className="p-3 bg-blue-100 rounded-full mb-3 group-hover:bg-blue-200">
-              <PlusCircle className="w-8 h-8 text-blue-600" />
-            </div>
-            <span className="font-semibold text-gray-900">Add Employee</span>
-            <span className="text-sm text-gray-500 mt-1">Manage employee salaries</span>
-          </button>
-
-          <button 
-            onClick={() => window.location.href = '/bills'}
-            className="flex flex-col items-center justify-center p-6 border-2 border-gray-200 rounded-xl hover:border-green-500 hover:bg-green-50 transition-all group"
-          >
-            <div className="p-3 bg-green-100 rounded-full mb-3 group-hover:bg-green-200">
-              <FileText className="w-8 h-8 text-green-600" />
-            </div>
-            <span className="font-semibold text-gray-900">Manage Bills</span>
-            <span className="text-sm text-gray-500 mt-1">Utilities & monthly bills</span>
-          </button>
-
-          <button 
-            onClick={() => window.location.href = '/transport-expenses'}
-            className="flex flex-col items-center justify-center p-6 border-2 border-gray-200 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all group"
-          >
-            <div className="p-3 bg-purple-100 rounded-full mb-3 group-hover:bg-purple-200">
-              <BarChart3 className="w-8 h-8 text-purple-600" />
-            </div>
-            <span className="font-semibold text-gray-900">Transport Expenses</span>
-            <span className="text-sm text-gray-500 mt-1">Manage transportation costs</span>
-          </button>
-
-          <button 
-            onClick={() => window.location.href = '/extra-expenses'}
-            className="flex flex-col items-center justify-center p-6 border-2 border-gray-200 rounded-xl hover:border-orange-500 hover:bg-orange-50 transition-all group"
-          >
-            <div className="p-3 bg-orange-100 rounded-full mb-3 group-hover:bg-orange-200">
-              <Tag className="w-8 h-8 text-orange-600" />
-            </div>
-            <span className="font-semibold text-gray-900">Extra Expenses</span>
-            <span className="text-sm text-gray-500 mt-1">Manage miscellaneous expenses</span>
-          </button>
+      {/* Quick Stats Cards - Added Food Costs */}
+      <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white p-4 rounded-lg shadow">
+          <div className="text-sm text-gray-500">Total Monthly Food Costs</div>
+          <div className="text-2xl font-bold text-green-600">
+            {formatCurrency(dashboardData.monthlySummary.foodCosts)}
+          </div>
+          <div className="text-xs text-gray-400 mt-1">
+            {dashboardData.monthlySummary.foodCosts > 0 
+              ? `${calculatePercentage(dashboardData.monthlySummary.foodCosts)}% of monthly total`
+              : 'No food cost data'
+            }
+          </div>
+        </div>
+        
+        <div className="bg-white p-4 rounded-lg shadow">
+          <div className="text-sm text-gray-500">Monthly Average Per Day</div>
+          <div className="text-2xl font-bold text-blue-600">
+            {formatCurrency(dashboardData.monthlySummary.foodCosts / 30)}
+          </div>
+          <div className="text-xs text-gray-400 mt-1">
+            Based on 30 days
+          </div>
+        </div>
+        
+        <div className="bg-white p-4 rounded-lg shadow">
+          <div className="text-sm text-gray-500">Food Cost Records This Month</div>
+          <div className="text-2xl font-bold text-purple-600">
+            {Math.ceil(dashboardData.monthlySummary.foodCosts / (dashboardData.monthlySummary.foodCosts > 0 ? 1 : 1))}
+          </div>
+          <div className="text-xs text-gray-400 mt-1">
+            Approximate count based on total
+          </div>
+        </div>
+        
+        <div className="bg-white p-4 rounded-lg shadow">
+          <div className="text-sm text-gray-500">Yearly Food Costs</div>
+          <div className="text-2xl font-bold text-orange-600">
+            {formatCurrency(
+              dashboardData.yearlySummary.categoryTotals.find(item => item.category === 'Food Costs')?.amount || 0
+            )}
+          </div>
+          <div className="text-xs text-gray-400 mt-1">
+            Total for {dashboardData.selectedYearForYearly}
+          </div>
         </div>
       </div>
+
     </div>
   );
 }

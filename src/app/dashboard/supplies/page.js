@@ -1,10 +1,21 @@
-// "use client";
+
+
+
+// 'use client';
 
 // import React, { useState, useEffect, useMemo, useRef } from "react";
+// import { useRouter } from 'next/navigation';
 // import jsPDF from "jspdf";
 // import autoTable from "jspdf-autotable";
 
 // export default function OfficeSupplyPage() {
+//   const router = useRouter();
+  
+//   // Authentication state
+//   const [user, setUser] = useState(null);
+//   const [authLoading, setAuthLoading] = useState(true);
+  
+//   // Form state
 //   const [supplies, setSupplies] = useState([
 //     { name: "", date: "", price: "", paymentMethod: "" },
 //   ]);
@@ -30,6 +41,9 @@
 //   // Ref for edit form
 //   const editFormRef = useRef(null);
 
+//   // API URL
+//   const API_URL = "http://localhost:5004/api";
+
 //   // Month names for display
 //   const monthNames = [
 //     "January", "February", "March", "April", "May", "June",
@@ -39,10 +53,17 @@
 //   // Currency symbol for Bangladeshi Taka
 //   const currencySymbol = "৳";
 
-//   // Fetch stored supplies on component mount
+//   // Check authentication on mount
 //   useEffect(() => {
-//     fetchStoredSupplies();
+//     checkAuthentication();
 //   }, []);
+
+//   // Initialize data after authentication
+//   useEffect(() => {
+//     if (user && !authLoading) {
+//       fetchStoredSupplies();
+//     }
+//   }, [user, authLoading]);
 
 //   // Update years and months when supplies change
 //   useEffect(() => {
@@ -54,7 +75,7 @@
 //             return date.getFullYear();
 //           })
 //         )
-//       ).sort((a, b) => b - a); // Sort descending (newest first)
+//       ).sort((a, b) => b - a);
 
 //       setYears(uniqueYears);
 
@@ -69,7 +90,7 @@
 //           new Set(
 //             yearSupplies.map(supply => {
 //               const date = new Date(supply.date);
-//               return date.getMonth() + 1; // Months are 0-indexed in JS
+//               return date.getMonth() + 1;
 //             })
 //           )
 //         ).sort((a, b) => a - b);
@@ -96,11 +117,72 @@
 //     }
 //   }, [editingId]);
 
+//   // Check if user is authenticated
+//   const checkAuthentication = () => {
+//     const userData = localStorage.getItem('user');
+//     const isAuth = localStorage.getItem('isAuthenticated');
+//     const authToken = localStorage.getItem('auth_token');
+    
+//     if (!userData || !isAuth || !authToken) {
+//       router.push('/');
+//       return;
+//     }
+    
+//     try {
+//       const parsedUser = JSON.parse(userData);
+      
+//       // Check if user has permission (admin or moderator)
+//       if (!['admin', 'moderator', 'user'].includes(parsedUser.role)) {
+//         setError('Access denied. You do not have permission to manage office supplies.');
+//         setTimeout(() => router.push('/dashboard'), 2000);
+//         return;
+//       }
+      
+//       setUser(parsedUser);
+//       setAuthLoading(false);
+//     } catch (error) {
+//       console.error('Error parsing user data:', error);
+//       router.push('/');
+//     }
+//   };
+
+//   // Function to handle logout
+//   const handleLogout = () => {
+//     // Clear authentication data
+//     localStorage.removeItem('auth_token');
+//     localStorage.removeItem('user');
+//     localStorage.removeItem('isAuthenticated');
+//     sessionStorage.clear();
+    
+//     // Clear any cookies if needed
+//     document.cookie.split(";").forEach(function(c) {
+//       document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+//     });
+    
+//     // Redirect to login page
+//     router.push('/');
+//   };
+
 //   const fetchStoredSupplies = async () => {
 //     setLoading(true);
 //     setError("");
 //     try {
-//       const response = await fetch('http://localhost:5004/api/office-supplies');
+//       const authToken = localStorage.getItem('auth_token');
+//       const response = await fetch(`${API_URL}/office-supplies`, {
+//         headers: {
+//           'Authorization': `Bearer ${authToken}`,
+//         },
+//         credentials: 'include'
+//       });
+      
+//       if (!response.ok) {
+//         if (response.status === 401 || response.status === 403) {
+//           handleLogout();
+//           return;
+//         }
+//         throw new Error(`HTTP error! status: ${response.status}`);
+//       }
+      
 //       const data = await response.json();
 //       if (data.success) {
 //         // Sort supplies by date in descending order (newest first)
@@ -126,7 +208,7 @@
 //     return storedSupplies.filter(supply => {
 //       const date = new Date(supply.date);
 //       const year = date.getFullYear().toString();
-//       const month = (date.getMonth() + 1).toString(); // Convert to 1-indexed month
+//       const month = (date.getMonth() + 1).toString();
 
 //       // Apply year filter
 //       if (selectedYear !== "all" && year !== selectedYear) {
@@ -166,7 +248,7 @@
 //       doc.setTextColor(100);
 //       doc.text("Generated on: " + new Date().toLocaleDateString(), 14, 30);
       
-//       // Filter information - Format: "December 2025"
+//       // Filter information
 //       let filterInfo = "All Supplies";
 //       if (selectedYear !== "all" && selectedMonth !== "all") {
 //         filterInfo = `${monthNames[parseInt(selectedMonth) - 1]} ${selectedYear}`;
@@ -178,6 +260,11 @@
 //       doc.text(`Report Type: ${filterInfo}`, 14, 36);
 //       doc.text(`Total Records: ${filteredSupplies.length}`, 14, 42);
       
+//       // Add user info
+//       if (user) {
+//         doc.text(`Generated by: ${user.name} (${user.role})`, 14, 48);
+//       }
+      
 //       // Prepare table data - Use "BDT" instead of ৳ symbol
 //       const tableData = filteredSupplies.map(supply => [
 //         supply.name,
@@ -188,7 +275,7 @@
       
 //       // Add table using autoTable
 //       autoTable(doc, {
-//         startY: 50,
+//         startY: user ? 55 : 50,
 //         head: [['Supply Name', 'Date', 'Price (BDT)', 'Payment Method']],
 //         body: tableData,
 //         headStyles: {
@@ -299,17 +386,28 @@
 //     }
 
 //     try {
-//       const response = await fetch('http://localhost:5004/api/office-supplies', {
+//       const authToken = localStorage.getItem('auth_token');
+//       const response = await fetch(`${API_URL}/office-supplies`, {
 //         method: 'POST',
 //         headers: {
 //           'Content-Type': 'application/json',
+//           'Authorization': `Bearer ${authToken}`,
 //         },
+//         credentials: 'include',
 //         body: JSON.stringify(validSupplies),
 //       });
 
+//       if (!response.ok) {
+//         if (response.status === 401 || response.status === 403) {
+//           handleLogout();
+//           return;
+//         }
+//         throw new Error(`HTTP error! status: ${response.status}`);
+//       }
+
 //       const data = await response.json();
 
-//       if (response.ok && data.success) {
+//       if (data.success) {
 //         setSuccess(`Successfully saved ${data.data.length} supply item(s)`);
 //         // Reset form
 //         setSupplies([{ name: "", date: "", price: "", paymentMethod: "" }]);
@@ -365,11 +463,14 @@
 //     setSuccess("");
 
 //     try {
-//       const response = await fetch(`http://localhost:5004/api/office-supplies/${editingId}`, {
+//       const authToken = localStorage.getItem('auth_token');
+//       const response = await fetch(`${API_URL}/office-supplies/${editingId}`, {
 //         method: 'PUT',
 //         headers: {
 //           'Content-Type': 'application/json',
+//           'Authorization': `Bearer ${authToken}`,
 //         },
+//         credentials: 'include',
 //         body: JSON.stringify({
 //           name: editForm.name,
 //           date: editForm.date,
@@ -378,9 +479,17 @@
 //         }),
 //       });
 
+//       if (!response.ok) {
+//         if (response.status === 401 || response.status === 403) {
+//           handleLogout();
+//           return;
+//         }
+//         throw new Error(`HTTP error! status: ${response.status}`);
+//       }
+
 //       const data = await response.json();
 
-//       if (response.ok && data.success) {
+//       if (data.success) {
 //         setSuccess('Supply item updated successfully');
 //         // Refresh the list
 //         fetchStoredSupplies();
@@ -407,13 +516,26 @@
 //     if (!window.confirm('Are you sure you want to delete this item?')) return;
 
 //     try {
-//       const response = await fetch(`http://localhost:5004/api/office-supplies/${id}`, {
+//       const authToken = localStorage.getItem('auth_token');
+//       const response = await fetch(`${API_URL}/office-supplies/${id}`, {
 //         method: 'DELETE',
+//         headers: {
+//           'Authorization': `Bearer ${authToken}`,
+//         },
+//         credentials: 'include'
 //       });
+
+//       if (!response.ok) {
+//         if (response.status === 401 || response.status === 403) {
+//           handleLogout();
+//           return;
+//         }
+//         throw new Error(`HTTP error! status: ${response.status}`);
+//       }
 
 //       const data = await response.json();
 
-//       if (response.ok && data.success) {
+//       if (data.success) {
 //         setSuccess('Supply item deleted successfully');
 //         // Refresh the list
 //         fetchStoredSupplies();
@@ -464,7 +586,7 @@
 //   // Handle year filter change
 //   const handleYearChange = (e) => {
 //     setSelectedYear(e.target.value);
-//     setSelectedMonth("all"); // Reset month when year changes
+//     setSelectedMonth("all");
 //   };
 
 //   // Handle month filter change
@@ -478,12 +600,63 @@
 //     setSelectedMonth("all");
 //   };
 
+//   // Show loading while auth is being checked
+//   if (authLoading) {
+//     return (
+//       <div className="min-h-screen flex items-center justify-center">
+//         <div className="text-center">
+//           <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+//           <p className="text-gray-600">Checking authentication...</p>
+//         </div>
+//       </div>
+//     );
+//   }
+
+//   if (!user) {
+//     return null; // Will redirect
+//   }
+
 //   return (
 //     <div className="min-h-screen bg-gray-100 p-4 md:p-6">
 //       <div className="max-w-7xl mx-auto">
-//         <h2 className="text-2xl font-semibold text-center mb-6">
-//           Office Supply Expense Management
-//         </h2>
+//         {/* Header with User Info */}
+//         <div className="mb-8">
+//           <div className="flex justify-between items-center mb-4">
+//             <div>
+//               <h1 className="text-3xl font-bold text-gray-800">Office Supply Expense Management</h1>
+//               <p className="text-gray-600 mt-2">Track and manage your office supplies</p>
+//             </div>
+//             <div className="flex items-center space-x-4">
+//               <div className="text-right">
+//                 <p className="text-sm text-gray-600">Logged in as: <span className="font-semibold">{user.name}</span></p>
+//                 <p className="text-xs text-gray-500">Role: <span className="font-medium capitalize">{user.role}</span></p>
+//               </div>
+//               <button
+//                 onClick={handleLogout}
+//                 className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
+//               >
+//                 Logout
+//               </button>
+//             </div>
+//           </div>
+
+//           {/* User Info Banner */}
+//           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+//             <div className="flex items-center justify-between">
+//               <div className="flex items-center space-x-4">
+//                 <div className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+//                   Office Supplies Management
+//                 </div>
+//                 <div className="text-sm text-blue-700">
+//                   Track office supply purchases and expenses
+//                 </div>
+//               </div>
+//               <div className="text-sm text-blue-600">
+//                 <span className="font-medium">Access Level:</span> {user.role}
+//               </div>
+//             </div>
+//           </div>
+//         </div>
 
 //         {/* Form Section */}
 //         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
@@ -1054,7 +1227,7 @@
 //                 </table>
 //               </div>
               
-//               {/* Summary Stats - Removed Average per Item */}
+//               {/* Summary Stats */}
 //               <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
 //                 <div className="bg-blue-50 p-4 rounded-lg">
 //                   <h4 className="text-sm font-medium text-blue-900">
@@ -1094,7 +1267,7 @@ export default function OfficeSupplyPage() {
   
   // Form state
   const [supplies, setSupplies] = useState([
-    { name: "", date: "", price: "", paymentMethod: "" },
+    { name: "", date: "", price: "", paymentMethod: "", note: "" },
   ]);
   const [storedSupplies, setStoredSupplies] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1106,7 +1279,8 @@ export default function OfficeSupplyPage() {
     name: "",
     date: "",
     price: "",
-    paymentMethod: ""
+    paymentMethod: "",
+    note: ""
   });
 
   // Filter states
@@ -1347,13 +1521,14 @@ export default function OfficeSupplyPage() {
         supply.name,
         new Date(supply.date).toLocaleDateString(),
         `BDT ${supply.price.toFixed(2)}`,
-        supply.paymentMethod
+        supply.paymentMethod,
+        supply.note || "-"
       ]);
       
       // Add table using autoTable
       autoTable(doc, {
         startY: user ? 55 : 50,
-        head: [['Supply Name', 'Date', 'Price (BDT)', 'Payment Method']],
+        head: [['Supply Name', 'Date', 'Price (BDT)', 'Payment Method', 'Note']],
         body: tableData,
         headStyles: {
           fillColor: [41, 128, 185],
@@ -1365,10 +1540,11 @@ export default function OfficeSupplyPage() {
           cellPadding: 3
         },
         columnStyles: {
-          0: { cellWidth: 50 },
-          1: { cellWidth: 35 },
-          2: { cellWidth: 35 },
-          3: { cellWidth: 40 }
+          0: { cellWidth: 40 },
+          1: { cellWidth: 30 },
+          2: { cellWidth: 25 },
+          3: { cellWidth: 30 },
+          4: { cellWidth: 40 }
         },
         didDrawPage: function (data) {
           // Footer
@@ -1436,7 +1612,7 @@ export default function OfficeSupplyPage() {
   const addSupply = () => {
     setSupplies([
       ...supplies,
-      { name: "", date: "", price: "", paymentMethod: "" },
+      { name: "", date: "", price: "", paymentMethod: "", note: "" },
     ]);
   };
 
@@ -1487,7 +1663,7 @@ export default function OfficeSupplyPage() {
       if (data.success) {
         setSuccess(`Successfully saved ${data.data.length} supply item(s)`);
         // Reset form
-        setSupplies([{ name: "", date: "", price: "", paymentMethod: "" }]);
+        setSupplies([{ name: "", date: "", price: "", paymentMethod: "", note: "" }]);
         // Refresh stored supplies
         fetchStoredSupplies();
         
@@ -1512,7 +1688,8 @@ export default function OfficeSupplyPage() {
       name: supply.name,
       date: new Date(supply.date).toISOString().split('T')[0],
       price: supply.price.toString(),
-      paymentMethod: supply.paymentMethod
+      paymentMethod: supply.paymentMethod,
+      note: supply.note || ""
     });
   };
 
@@ -1522,7 +1699,8 @@ export default function OfficeSupplyPage() {
       name: "",
       date: "",
       price: "",
-      paymentMethod: ""
+      paymentMethod: "",
+      note: ""
     });
   };
 
@@ -1552,7 +1730,8 @@ export default function OfficeSupplyPage() {
           name: editForm.name,
           date: editForm.date,
           price: parseFloat(editForm.price),
-          paymentMethod: editForm.paymentMethod
+          paymentMethod: editForm.paymentMethod,
+          note: editForm.note
         }),
       });
 
@@ -1576,7 +1755,8 @@ export default function OfficeSupplyPage() {
           name: "",
           date: "",
           price: "",
-          paymentMethod: ""
+          paymentMethod: "",
+          note: ""
         });
       } else {
         setError(data.message || 'Failed to update supply item');
@@ -1753,16 +1933,17 @@ export default function OfficeSupplyPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Header Row - Desktop only */}
-            <div className="hidden md:grid md:grid-cols-12 gap-3 text-sm font-semibold text-gray-600 px-1">
-              <div className="col-span-4">Supply Name</div>
+            <div className="hidden md:grid md:grid-cols-13 gap-3 text-sm font-semibold text-gray-600 px-1">
+              <div className="col-span-3">Supply Name</div>
               <div className="col-span-2">Price (৳)</div>
-              <div className="col-span-3">Date</div>
+              <div className="col-span-2">Date</div>
               <div className="col-span-2">Payment Method</div>
+              <div className="col-span-3">Note</div>
               <div className="col-span-1 text-center">Action</div>
             </div>
 
             {supplies.map((supply, index) => (
-              <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-3 items-center p-3 md:p-0 md:border-0 border border-gray-200 rounded-md mb-3 md:mb-0">
+              <div key={index} className="grid grid-cols-1 md:grid-cols-13 gap-3 md:gap-3 items-center p-3 md:p-0 md:border-0 border border-gray-200 rounded-md mb-3 md:mb-0">
                 {/* Mobile View - Vertical Layout */}
                 <div className="md:hidden space-y-3 w-full">
                   <div className="grid grid-cols-2 gap-2">
@@ -1837,6 +2018,21 @@ export default function OfficeSupplyPage() {
                     </div>
                   </div>
                   
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Note (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Optional note about this item"
+                      value={supply.note}
+                      onChange={(e) =>
+                        updateSupplyField(index, "note", e.target.value)
+                      }
+                      className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  
                   {supplies.length > 1 && (
                     <div className="pt-2">
                       <button
@@ -1852,7 +2048,7 @@ export default function OfficeSupplyPage() {
 
                 {/* Desktop View - Grid Layout */}
                 {/* Supply Name */}
-                <div className="hidden md:block col-span-4">
+                <div className="hidden md:block col-span-3">
                   <input
                     type="text"
                     placeholder="e.g., Printer Paper, Pens, etc."
@@ -1882,7 +2078,7 @@ export default function OfficeSupplyPage() {
                 </div>
 
                 {/* Date */}
-                <div className="hidden md:block col-span-3">
+                <div className="hidden md:block col-span-2">
                   <input
                     type="date"
                     value={supply.date}
@@ -1911,6 +2107,19 @@ export default function OfficeSupplyPage() {
                     <option value="Mobile Banking">Mobile Banking</option>
                     <option value="Card">Card</option>
                   </select>
+                </div>
+
+                {/* Note */}
+                <div className="hidden md:block col-span-3">
+                  <input
+                    type="text"
+                    placeholder="Optional note about this item"
+                    value={supply.note}
+                    onChange={(e) =>
+                      updateSupplyField(index, "note", e.target.value)
+                    }
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
                 </div>
 
                 {/* Remove Button */}
@@ -1977,9 +2186,9 @@ export default function OfficeSupplyPage() {
               </button>
             </div>
             
-            <div className="grid grid-cols-12 gap-3 items-center">
+            <div className="grid grid-cols-13 gap-3 items-center">
               {/* Supply Name */}
-              <div className="col-span-4">
+              <div className="col-span-3">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Supply Name *
                 </label>
@@ -2011,7 +2220,7 @@ export default function OfficeSupplyPage() {
               </div>
 
               {/* Date */}
-              <div className="col-span-3">
+              <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Date *
                 </label>
@@ -2028,7 +2237,7 @@ export default function OfficeSupplyPage() {
               {/* Payment Method */}
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Payment Method *
+                  Pay Method *
                 </label>
                 <select
                   value={editForm.paymentMethod}
@@ -2042,6 +2251,20 @@ export default function OfficeSupplyPage() {
                   <option value="Mobile Banking">Mobile Banking</option>
                   <option value="Card">Card</option>
                 </select>
+              </div>
+
+              {/* Note */}
+              <div className="col-span-3">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Note (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={editForm.note}
+                  onChange={(e) => setEditForm({...editForm, note: e.target.value})}
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Optional note about this item"
+                />
               </div>
 
               {/* Action Buttons */}
@@ -2227,6 +2450,9 @@ export default function OfficeSupplyPage() {
                         Payment Method
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Note
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Actions
                       </th>
                     </tr>
@@ -2256,6 +2482,11 @@ export default function OfficeSupplyPage() {
                           <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
                             {supply.paymentMethod}
                           </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-600 max-w-xs truncate">
+                            {supply.note || "-"}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <div className="flex space-x-2">
@@ -2296,7 +2527,7 @@ export default function OfficeSupplyPage() {
                           {formatCurrency(calculateTotal())}
                         </div>
                       </td>
-                      <td colSpan="2" className="px-6 py-4 text-sm text-gray-500">
+                      <td colSpan="3" className="px-6 py-4 text-sm text-gray-500">
                         {filteredSupplies.length} item(s)
                       </td>
                     </tr>
@@ -2326,5 +2557,3 @@ export default function OfficeSupplyPage() {
     </div>
   );
 }
-
-
