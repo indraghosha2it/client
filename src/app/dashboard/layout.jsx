@@ -285,7 +285,7 @@ export default function DashboardLayout({ children }) {
   // Admin tools (only for admin)
   const adminTools = [
     { name: 'User Management', icon: UserCog, href: '/dashboard/userManagement' },
-    { name: 'System Settings', icon: Settings, href: '/admin/settings' },
+    // { name: 'System Settings', icon: Settings, href: '/admin/settings' },
   ];
 
   // Function to check if a nav item is active

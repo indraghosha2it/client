@@ -566,7 +566,7 @@ const handleLoginSubmit = async (e) => {
                 </button>
 
                 {/* Sign Up Link */}
-                <div className="pt-2 border-t border-gray-100">
+                {/* <div className="pt-2 border-t border-gray-100">
                   <p className="text-center text-gray-600">
                     Don't have an account?{' '}
                     <Link 
@@ -577,7 +577,7 @@ const handleLoginSubmit = async (e) => {
                       <ArrowRight size={16} />
                     </Link>
                   </p>
-                </div>
+                </div> */}
 
                
               </form>

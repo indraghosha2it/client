@@ -3773,53 +3773,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Quick Stats Cards - Added Food Costs */}
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-sm text-gray-500">Total Monthly Food Costs</div>
-          <div className="text-2xl font-bold text-green-600">
-            {formatCurrency(dashboardData.monthlySummary.foodCosts)}
-          </div>
-          <div className="text-xs text-gray-400 mt-1">
-            {dashboardData.monthlySummary.foodCosts > 0 
-              ? `${calculatePercentage(dashboardData.monthlySummary.foodCosts)}% of monthly total`
-              : 'No food cost data'
-            }
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-sm text-gray-500">Monthly Average Per Day</div>
-          <div className="text-2xl font-bold text-blue-600">
-            {formatCurrency(dashboardData.monthlySummary.foodCosts / 30)}
-          </div>
-          <div className="text-xs text-gray-400 mt-1">
-            Based on 30 days
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-sm text-gray-500">Food Cost Records This Month</div>
-          <div className="text-2xl font-bold text-purple-600">
-            {Math.ceil(dashboardData.monthlySummary.foodCosts / (dashboardData.monthlySummary.foodCosts > 0 ? 1 : 1))}
-          </div>
-          <div className="text-xs text-gray-400 mt-1">
-            Approximate count based on total
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-sm text-gray-500">Yearly Food Costs</div>
-          <div className="text-2xl font-bold text-orange-600">
-            {formatCurrency(
-              dashboardData.yearlySummary.categoryTotals.find(item => item.category === 'Food Costs')?.amount || 0
-            )}
-          </div>
-          <div className="text-xs text-gray-400 mt-1">
-            Total for {dashboardData.selectedYearForYearly}
-          </div>
-        </div>
-      </div>
+ 
 
     </div>
   );
