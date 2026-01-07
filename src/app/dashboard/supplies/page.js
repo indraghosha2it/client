@@ -1,6 +1,4 @@
 
-
-
 // 'use client';
 
 // import React, { useState, useEffect, useMemo, useRef } from "react";
@@ -17,7 +15,7 @@
   
 //   // Form state
 //   const [supplies, setSupplies] = useState([
-//     { name: "", date: "", price: "", paymentMethod: "" },
+//     { name: "", date: "", price: "", paymentMethod: "", note: "" },
 //   ]);
 //   const [storedSupplies, setStoredSupplies] = useState([]);
 //   const [loading, setLoading] = useState(false);
@@ -29,7 +27,8 @@
 //     name: "",
 //     date: "",
 //     price: "",
-//     paymentMethod: ""
+//     paymentMethod: "",
+//     note: ""
 //   });
 
 //   // Filter states
@@ -270,13 +269,14 @@
 //         supply.name,
 //         new Date(supply.date).toLocaleDateString(),
 //         `BDT ${supply.price.toFixed(2)}`,
-//         supply.paymentMethod
+//         supply.paymentMethod,
+//         supply.note || "-"
 //       ]);
       
 //       // Add table using autoTable
 //       autoTable(doc, {
 //         startY: user ? 55 : 50,
-//         head: [['Supply Name', 'Date', 'Price (BDT)', 'Payment Method']],
+//         head: [['Supply Name', 'Date', 'Price (BDT)', 'Payment Method', 'Note']],
 //         body: tableData,
 //         headStyles: {
 //           fillColor: [41, 128, 185],
@@ -288,10 +288,11 @@
 //           cellPadding: 3
 //         },
 //         columnStyles: {
-//           0: { cellWidth: 50 },
-//           1: { cellWidth: 35 },
-//           2: { cellWidth: 35 },
-//           3: { cellWidth: 40 }
+//           0: { cellWidth: 40 },
+//           1: { cellWidth: 30 },
+//           2: { cellWidth: 25 },
+//           3: { cellWidth: 30 },
+//           4: { cellWidth: 40 }
 //         },
 //         didDrawPage: function (data) {
 //           // Footer
@@ -359,7 +360,7 @@
 //   const addSupply = () => {
 //     setSupplies([
 //       ...supplies,
-//       { name: "", date: "", price: "", paymentMethod: "" },
+//       { name: "", date: "", price: "", paymentMethod: "", note: "" },
 //     ]);
 //   };
 
@@ -410,7 +411,7 @@
 //       if (data.success) {
 //         setSuccess(`Successfully saved ${data.data.length} supply item(s)`);
 //         // Reset form
-//         setSupplies([{ name: "", date: "", price: "", paymentMethod: "" }]);
+//         setSupplies([{ name: "", date: "", price: "", paymentMethod: "", note: "" }]);
 //         // Refresh stored supplies
 //         fetchStoredSupplies();
         
@@ -435,7 +436,8 @@
 //       name: supply.name,
 //       date: new Date(supply.date).toISOString().split('T')[0],
 //       price: supply.price.toString(),
-//       paymentMethod: supply.paymentMethod
+//       paymentMethod: supply.paymentMethod,
+//       note: supply.note || ""
 //     });
 //   };
 
@@ -445,7 +447,8 @@
 //       name: "",
 //       date: "",
 //       price: "",
-//       paymentMethod: ""
+//       paymentMethod: "",
+//       note: ""
 //     });
 //   };
 
@@ -475,7 +478,8 @@
 //           name: editForm.name,
 //           date: editForm.date,
 //           price: parseFloat(editForm.price),
-//           paymentMethod: editForm.paymentMethod
+//           paymentMethod: editForm.paymentMethod,
+//           note: editForm.note
 //         }),
 //       });
 
@@ -499,7 +503,8 @@
 //           name: "",
 //           date: "",
 //           price: "",
-//           paymentMethod: ""
+//           paymentMethod: "",
+//           note: ""
 //         });
 //       } else {
 //         setError(data.message || 'Failed to update supply item');
@@ -676,16 +681,17 @@
 
 //           <form onSubmit={handleSubmit} className="space-y-4">
 //             {/* Header Row - Desktop only */}
-//             <div className="hidden md:grid md:grid-cols-12 gap-3 text-sm font-semibold text-gray-600 px-1">
-//               <div className="col-span-4">Supply Name</div>
+//             <div className="hidden md:grid md:grid-cols-13 gap-3 text-sm font-semibold text-gray-600 px-1">
+//               <div className="col-span-3">Supply Name</div>
 //               <div className="col-span-2">Price (৳)</div>
-//               <div className="col-span-3">Date</div>
+//               <div className="col-span-2">Date</div>
 //               <div className="col-span-2">Payment Method</div>
+//               <div className="col-span-3">Note</div>
 //               <div className="col-span-1 text-center">Action</div>
 //             </div>
 
 //             {supplies.map((supply, index) => (
-//               <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-3 items-center p-3 md:p-0 md:border-0 border border-gray-200 rounded-md mb-3 md:mb-0">
+//               <div key={index} className="grid grid-cols-1 md:grid-cols-13 gap-3 md:gap-3 items-center p-3 md:p-0 md:border-0 border border-gray-200 rounded-md mb-3 md:mb-0">
 //                 {/* Mobile View - Vertical Layout */}
 //                 <div className="md:hidden space-y-3 w-full">
 //                   <div className="grid grid-cols-2 gap-2">
@@ -760,6 +766,21 @@
 //                     </div>
 //                   </div>
                   
+//                   <div>
+//                     <label className="block text-xs font-medium text-gray-700 mb-1">
+//                       Note (Optional)
+//                     </label>
+//                     <input
+//                       type="text"
+//                       placeholder="Optional note about this item"
+//                       value={supply.note}
+//                       onChange={(e) =>
+//                         updateSupplyField(index, "note", e.target.value)
+//                       }
+//                       className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+//                     />
+//                   </div>
+                  
 //                   {supplies.length > 1 && (
 //                     <div className="pt-2">
 //                       <button
@@ -775,7 +796,7 @@
 
 //                 {/* Desktop View - Grid Layout */}
 //                 {/* Supply Name */}
-//                 <div className="hidden md:block col-span-4">
+//                 <div className="hidden md:block col-span-3">
 //                   <input
 //                     type="text"
 //                     placeholder="e.g., Printer Paper, Pens, etc."
@@ -805,7 +826,7 @@
 //                 </div>
 
 //                 {/* Date */}
-//                 <div className="hidden md:block col-span-3">
+//                 <div className="hidden md:block col-span-2">
 //                   <input
 //                     type="date"
 //                     value={supply.date}
@@ -834,6 +855,19 @@
 //                     <option value="Mobile Banking">Mobile Banking</option>
 //                     <option value="Card">Card</option>
 //                   </select>
+//                 </div>
+
+//                 {/* Note */}
+//                 <div className="hidden md:block col-span-3">
+//                   <input
+//                     type="text"
+//                     placeholder="Optional note about this item"
+//                     value={supply.note}
+//                     onChange={(e) =>
+//                       updateSupplyField(index, "note", e.target.value)
+//                     }
+//                     className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+//                   />
 //                 </div>
 
 //                 {/* Remove Button */}
@@ -900,9 +934,9 @@
 //               </button>
 //             </div>
             
-//             <div className="grid grid-cols-12 gap-3 items-center">
+//             <div className="grid grid-cols-13 gap-3 items-center">
 //               {/* Supply Name */}
-//               <div className="col-span-4">
+//               <div className="col-span-3">
 //                 <label className="block text-sm font-medium text-gray-700 mb-1">
 //                   Supply Name *
 //                 </label>
@@ -934,7 +968,7 @@
 //               </div>
 
 //               {/* Date */}
-//               <div className="col-span-3">
+//               <div className="col-span-2">
 //                 <label className="block text-sm font-medium text-gray-700 mb-1">
 //                   Date *
 //                 </label>
@@ -951,7 +985,7 @@
 //               {/* Payment Method */}
 //               <div className="col-span-2">
 //                 <label className="block text-sm font-medium text-gray-700 mb-1">
-//                   Payment Method *
+//                   Pay Method *
 //                 </label>
 //                 <select
 //                   value={editForm.paymentMethod}
@@ -965,6 +999,20 @@
 //                   <option value="Mobile Banking">Mobile Banking</option>
 //                   <option value="Card">Card</option>
 //                 </select>
+//               </div>
+
+//               {/* Note */}
+//               <div className="col-span-3">
+//                 <label className="block text-sm font-medium text-gray-700 mb-1">
+//                   Note (Optional)
+//                 </label>
+//                 <input
+//                   type="text"
+//                   value={editForm.note}
+//                   onChange={(e) => setEditForm({...editForm, note: e.target.value})}
+//                   className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+//                   placeholder="Optional note about this item"
+//                 />
 //               </div>
 
 //               {/* Action Buttons */}
@@ -1150,6 +1198,9 @@
 //                         Payment Method
 //                       </th>
 //                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+//                         Note
+//                       </th>
+//                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
 //                         Actions
 //                       </th>
 //                     </tr>
@@ -1179,6 +1230,11 @@
 //                           <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
 //                             {supply.paymentMethod}
 //                           </span>
+//                         </td>
+//                         <td className="px-6 py-4 whitespace-nowrap">
+//                           <div className="text-sm text-gray-600 max-w-xs truncate">
+//                             {supply.note || "-"}
+//                           </div>
 //                         </td>
 //                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
 //                           <div className="flex space-x-2">
@@ -1219,7 +1275,7 @@
 //                           {formatCurrency(calculateTotal())}
 //                         </div>
 //                       </td>
-//                       <td colSpan="2" className="px-6 py-4 text-sm text-gray-500">
+//                       <td colSpan="3" className="px-6 py-4 text-sm text-gray-500">
 //                         {filteredSupplies.length} item(s)
 //                       </td>
 //                     </tr>
@@ -1250,13 +1306,157 @@
 //   );
 // }
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from 'next/navigation';
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import {
+  AlertCircle,
+  CheckCircle,
+  X,
+  Loader2,
+  Download,
+  Trash2,
+  Edit,
+  FileText,
+  RefreshCw,
+  LogOut,
+  Plus,
+  XCircle,
+  Check,
+  ArrowRight
+} from "lucide-react";
+
+// Toast Component
+const Toast = ({ message, type = 'success', onClose }) => {
+  const [isVisible, setIsVisible] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsVisible(false);
+      setTimeout(onClose, 300);
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  const bgColor = type === 'success' ? 'bg-green-50 border-green-200' : 
+                  type === 'error' ? 'bg-red-50 border-red-200' :
+                  type === 'warning' ? 'bg-yellow-50 border-yellow-200' :
+                  'bg-blue-50 border-blue-200';
+  const textColor = type === 'success' ? 'text-green-700' : 
+                    type === 'error' ? 'text-red-700' :
+                    type === 'warning' ? 'text-yellow-700' :
+                    'text-blue-700';
+  const iconColor = type === 'success' ? 'text-green-600' : 
+                    type === 'error' ? 'text-red-600' :
+                    type === 'warning' ? 'text-yellow-600' :
+                    'text-blue-600';
+
+  if (!isVisible) return null;
+
+  return (
+    <div className={`fixed top-4 right-4 z-50 p-4 rounded-xl shadow-lg border ${bgColor} animate-slide-in`}>
+      <div className="flex items-center space-x-3">
+        {type === 'success' ? (
+          <CheckCircle className={`w-5 h-5 ${iconColor}`} />
+        ) : type === 'error' ? (
+          <AlertCircle className={`w-5 h-5 ${iconColor}`} />
+        ) : type === 'warning' ? (
+          <AlertCircle className={`w-5 h-5 ${iconColor}`} />
+        ) : (
+          <AlertCircle className={`w-5 h-5 ${iconColor}`} />
+        )}
+        <div>
+          <p className={`font-medium ${textColor}`}>{message}</p>
+        </div>
+        <button
+          onClick={() => {
+            setIsVisible(false);
+            setTimeout(onClose, 300);
+          }}
+          className="ml-4 text-gray-400 hover:text-gray-600"
+        >
+          <X size={18} />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Delete Confirmation Toast Component
+const DeleteConfirmationToast = ({ 
+  itemName, 
+  itemType = "supply item", 
+  onConfirm, 
+  onCancel 
+}) => {
+  const [isVisible, setIsVisible] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsVisible(false);
+      setTimeout(onCancel, 300);
+    }, 10000); // Longer timeout for confirmation
+
+    return () => clearTimeout(timer);
+  }, [onCancel]);
+
+  if (!isVisible) return null;
+
+  return (
+    <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-md">
+      <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-4 animate-slide-in">
+        <div className="flex items-start justify-between">
+          <div className="flex items-start space-x-3">
+            <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+              <AlertCircle className="w-5 h-5 text-red-600" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">Delete {itemType.charAt(0).toUpperCase() + itemType.slice(1)}?</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Are you sure you want to delete <span className="font-medium">{itemName}</span>? 
+                This action cannot be undone.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              setIsVisible(false);
+              setTimeout(onCancel, 300);
+            }}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div className="flex justify-end space-x-3 mt-4">
+          <button
+            onClick={() => {
+              setIsVisible(false);
+              setTimeout(onCancel, 300);
+            }}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => {
+              setIsVisible(false);
+              onConfirm();
+            }}
+            className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors flex items-center"
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Delete {itemType.charAt(0).toUpperCase() + itemType.slice(1)}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default function OfficeSupplyPage() {
   const router = useRouter();
@@ -1265,6 +1465,12 @@ export default function OfficeSupplyPage() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   
+  // Toast state
+  const [toast, setToast] = useState(null);
+  
+  // Delete confirmation state
+  const [deleteConfirmation, setDeleteConfirmation] = useState(null);
+  
   // Form state
   const [supplies, setSupplies] = useState([
     { name: "", date: "", price: "", paymentMethod: "", note: "" },
@@ -1272,8 +1478,6 @@ export default function OfficeSupplyPage() {
   const [storedSupplies, setStoredSupplies] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({
     name: "",
@@ -1303,6 +1507,30 @@ export default function OfficeSupplyPage() {
 
   // Currency symbol for Bangladeshi Taka
   const currencySymbol = "৳";
+
+  // Show toast function
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+  };
+
+  // Clear toast
+  const clearToast = () => {
+    setToast(null);
+  };
+
+  // Show delete confirmation
+  const showDeleteConfirmation = (itemName, itemType, onConfirm) => {
+    setDeleteConfirmation({
+      itemName,
+      itemType,
+      onConfirm
+    });
+  };
+
+  // Clear delete confirmation
+  const clearDeleteConfirmation = () => {
+    setDeleteConfirmation(null);
+  };
 
   // Check authentication on mount
   useEffect(() => {
@@ -1384,7 +1612,7 @@ export default function OfficeSupplyPage() {
       
       // Check if user has permission (admin or moderator)
       if (!['admin', 'moderator', 'user'].includes(parsedUser.role)) {
-        setError('Access denied. You do not have permission to manage office supplies.');
+        showToast('Access denied. You do not have permission to manage office supplies.', 'error');
         setTimeout(() => router.push('/dashboard'), 2000);
         return;
       }
@@ -1412,11 +1640,13 @@ export default function OfficeSupplyPage() {
     
     // Redirect to login page
     router.push('/');
+    
+    // Show logout toast
+    showToast('Logged out successfully', 'success');
   };
 
   const fetchStoredSupplies = async () => {
     setLoading(true);
-    setError("");
     try {
       const authToken = localStorage.getItem('auth_token');
       const response = await fetch(`${API_URL}/office-supplies`, {
@@ -1443,12 +1673,13 @@ export default function OfficeSupplyPage() {
           return dateB.getTime() - dateA.getTime();
         });
         setStoredSupplies(sortedSupplies);
+        // showToast('Supplies loaded successfully', 'success');
       } else {
-        setError(data.message || 'Failed to load stored supplies');
+        showToast(data.message || 'Failed to load stored supplies', 'error');
       }
     } catch (error) {
       console.error('Error fetching supplies:', error);
-      setError('Failed to load stored supplies');
+      showToast('Failed to load stored supplies', 'error');
     } finally {
       setLoading(false);
     }
@@ -1478,7 +1709,7 @@ export default function OfficeSupplyPage() {
   // Generate PDF function
   const generatePDF = () => {
     if (filteredSupplies.length === 0) {
-      setError("No supplies to download");
+      showToast("No supplies to download", "error");
       return;
     }
 
@@ -1595,11 +1826,11 @@ export default function OfficeSupplyPage() {
       doc.save(filename);
       
       // Show success message
-      setSuccess(`PDF downloaded successfully: ${filename}`);
+      showToast(`PDF downloaded successfully: ${filename}`, "success");
       
     } catch (error) {
       console.error('Error generating PDF:', error);
-      setError('Failed to generate PDF. Please try again.');
+      showToast('Failed to generate PDF. Please try again.', 'error');
     }
   };
 
@@ -1614,18 +1845,21 @@ export default function OfficeSupplyPage() {
       ...supplies,
       { name: "", date: "", price: "", paymentMethod: "", note: "" },
     ]);
+    showToast('New supply field added', 'info');
   };
 
   const removeSupply = (index) => {
-    if (supplies.length === 1) return;
+    if (supplies.length === 1) {
+      showToast('You need at least one supply field', 'warning');
+      return;
+    }
     setSupplies(supplies.filter((_, i) => i !== index));
+    showToast('Supply field removed', 'info');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
-    setError("");
-    setSuccess("");
 
     // Filter out empty rows
     const validSupplies = supplies.filter(
@@ -1633,7 +1867,7 @@ export default function OfficeSupplyPage() {
     );
 
     if (validSupplies.length === 0) {
-      setError("Please add at least one supply item");
+      showToast("Please add at least one supply item", "error");
       setSaving(false);
       return;
     }
@@ -1661,7 +1895,7 @@ export default function OfficeSupplyPage() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess(`Successfully saved ${data.data.length} supply item(s)`);
+        showToast(`Successfully saved ${data.data.length} supply item(s)`, 'success');
         // Reset form
         setSupplies([{ name: "", date: "", price: "", paymentMethod: "", note: "" }]);
         // Refresh stored supplies
@@ -1672,11 +1906,11 @@ export default function OfficeSupplyPage() {
           console.warn('Warnings:', data.warnings);
         }
       } else {
-        setError(data.message || 'Failed to save supplies');
+        showToast(data.message || 'Failed to save supplies', 'error');
       }
     } catch (error) {
       console.error('Error saving supplies:', error);
-      setError('Network error. Please check if server is running.');
+      showToast('Network error. Please check if server is running.', 'error');
     } finally {
       setSaving(false);
     }
@@ -1691,6 +1925,7 @@ export default function OfficeSupplyPage() {
       paymentMethod: supply.paymentMethod,
       note: supply.note || ""
     });
+    showToast(`Editing "${supply.name}"`, 'info');
   };
 
   const handleCancelEdit = () => {
@@ -1702,6 +1937,7 @@ export default function OfficeSupplyPage() {
       paymentMethod: "",
       note: ""
     });
+    showToast('Edit cancelled', 'info');
   };
 
   const handleUpdateSupply = async () => {
@@ -1709,13 +1945,11 @@ export default function OfficeSupplyPage() {
 
     // Validation
     if (!editForm.name.trim() || !editForm.price || !editForm.date) {
-      setError("Please fill all required fields");
+      showToast("Please fill all required fields", "error");
       return;
     }
 
     setSaving(true);
-    setError("");
-    setSuccess("");
 
     try {
       const authToken = localStorage.getItem('auth_token');
@@ -1746,7 +1980,7 @@ export default function OfficeSupplyPage() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess('Supply item updated successfully');
+        showToast('Supply item updated successfully', 'success');
         // Refresh the list
         fetchStoredSupplies();
         // Reset edit mode
@@ -1759,20 +1993,27 @@ export default function OfficeSupplyPage() {
           note: ""
         });
       } else {
-        setError(data.message || 'Failed to update supply item');
+        showToast(data.message || 'Failed to update supply item', 'error');
       }
     } catch (error) {
       console.error('Error updating supply:', error);
-      setError('Failed to update supply item');
+      showToast('Failed to update supply item', 'error');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDeleteSupply = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this item?')) return;
+  const handleDeleteSupplyClick = (supply) => {
+    showDeleteConfirmation(
+      `"${supply.name}" (${formatCurrency(supply.price)})`,
+      "supply item",
+      () => handleDeleteSupplyConfirm(supply._id)
+    );
+  };
 
+  const handleDeleteSupplyConfirm = async (id) => {
     try {
+      setLoading(true);
       const authToken = localStorage.getItem('auth_token');
       const response = await fetch(`${API_URL}/office-supplies/${id}`, {
         method: 'DELETE',
@@ -1793,15 +2034,17 @@ export default function OfficeSupplyPage() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess('Supply item deleted successfully');
+        showToast('Supply item deleted successfully', 'success');
         // Refresh the list
         fetchStoredSupplies();
       } else {
-        setError(data.message || 'Failed to delete supply item');
+        showToast(data.message || 'Failed to delete supply item', 'error');
       }
     } catch (error) {
       console.error('Error deleting supply:', error);
-      setError('Failed to delete supply item');
+      showToast('Failed to delete supply item', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1844,17 +2087,20 @@ export default function OfficeSupplyPage() {
   const handleYearChange = (e) => {
     setSelectedYear(e.target.value);
     setSelectedMonth("all");
+    showToast('Year filter applied', 'info');
   };
 
   // Handle month filter change
   const handleMonthChange = (e) => {
     setSelectedMonth(e.target.value);
+    showToast('Month filter applied', 'info');
   };
 
   // Reset all filters
   const resetFilters = () => {
     setSelectedYear("all");
     setSelectedMonth("all");
+    showToast("Filters reset", "info");
   };
 
   // Show loading while auth is being checked
@@ -1876,6 +2122,19 @@ export default function OfficeSupplyPage() {
   return (
     <div className="min-h-screen bg-gray-100 p-4 md:p-6">
       <div className="max-w-7xl mx-auto">
+        {/* Toast Notifications */}
+        {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
+        
+        {/* Delete Confirmation Toast */}
+        {deleteConfirmation && (
+          <DeleteConfirmationToast 
+            itemName={deleteConfirmation.itemName}
+            itemType={deleteConfirmation.itemType}
+            onConfirm={deleteConfirmation.onConfirm}
+            onCancel={clearDeleteConfirmation}
+          />
+        )}
+
         {/* Header with User Info */}
         <div className="mb-8">
           <div className="flex justify-between items-center mb-4">
@@ -1888,12 +2147,13 @@ export default function OfficeSupplyPage() {
                 <p className="text-sm text-gray-600">Logged in as: <span className="font-semibold">{user.name}</span></p>
                 <p className="text-xs text-gray-500">Role: <span className="font-medium capitalize">{user.role}</span></p>
               </div>
-              <button
+              {/* <button
                 onClick={handleLogout}
-                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm flex items-center"
               >
+                <LogOut className="w-4 h-4 mr-2" />
                 Logout
-              </button>
+              </button> */}
             </div>
           </div>
 
@@ -1918,18 +2178,6 @@ export default function OfficeSupplyPage() {
         {/* Form Section */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <h3 className="text-lg font-semibold mb-4">Add New Supplies</h3>
-          
-          {/* Messages */}
-          {error && !editingId && (
-            <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md">
-              {error}
-            </div>
-          )}
-          {success && !editingId && (
-            <div className="mb-4 p-3 bg-green-100 text-green-700 rounded-md">
-              {success}
-            </div>
-          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Header Row - Desktop only */}
@@ -2038,8 +2286,9 @@ export default function OfficeSupplyPage() {
                       <button
                         type="button"
                         onClick={() => removeSupply(index)}
-                        className="w-full py-2 bg-red-100 text-red-600 rounded-md hover:bg-red-200 transition-colors text-sm"
+                        className="w-full py-2 bg-red-100 text-red-600 rounded-md hover:bg-red-200 transition-colors text-sm flex items-center justify-center"
                       >
+                        <Trash2 className="w-4 h-4 mr-2" />
                         Remove This Entry
                       </button>
                     </div>
@@ -2128,9 +2377,9 @@ export default function OfficeSupplyPage() {
                     <button
                       type="button"
                       onClick={() => removeSupply(index)}
-                      className="w-full py-2 bg-red-100 text-red-600 rounded-md hover:bg-red-200 transition-colors"
+                      className="w-full py-2 bg-red-100 text-red-600 rounded-md hover:bg-red-200 transition-colors flex items-center justify-center"
                     >
-                      ✕
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   )}
                 </div>
@@ -2145,25 +2394,36 @@ export default function OfficeSupplyPage() {
             </div>
 
             {/* Add More Supplies Button */}
-            <button
+           
+              <button
               type="button"
-              onClick={addSupply}
+             onClick={addSupply}
               className="hidden md:block w-full border border-dashed border-blue-500 text-blue-600 py-2 rounded-md hover:bg-blue-50 transition-colors"
-            >
-              + Add More Supplies
-            </button>
+             >
+               + Add More Supplies
+/             </button>
 
             {/* Submit Button */}
             <button
               type="submit"
               disabled={saving}
-              className={`w-full py-3 md:py-2 rounded-md transition-colors text-sm md:text-base ${
+              className={`w-full py-3 md:py-2 rounded-md transition-colors text-sm md:text-base flex items-center justify-center ${
                 saving
                   ? 'bg-blue-400 cursor-not-allowed'
                   : 'bg-blue-600 hover:bg-blue-700'
               } text-white`}
             >
-              {saving ? 'Saving...' : 'Save Supplies'}
+              {saving ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-5 h-5 mr-2" />
+                  Save Supplies
+                </>
+              )}
             </button>
           </form>
         </div>
@@ -2176,13 +2436,15 @@ export default function OfficeSupplyPage() {
           >
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-blue-700">
-                ✏️ Edit Supply Item
+                <Edit className="w-6 h-6 inline mr-2" />
+                Edit Supply Item
               </h3>
               <button
                 onClick={handleCancelEdit}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-gray-500 hover:text-gray-700 flex items-center"
               >
-                ✕ Close
+                <X className="w-5 h-5" />
+                Close
               </button>
             </div>
             
@@ -2272,13 +2534,23 @@ export default function OfficeSupplyPage() {
                 <button
                   onClick={handleUpdateSupply}
                   disabled={saving}
-                  className={`flex-1 py-2 rounded-md transition-colors ${
+                  className={`flex-1 py-2 rounded-md transition-colors flex items-center justify-center ${
                     saving
                       ? 'bg-blue-400 cursor-not-allowed'
                       : 'bg-blue-600 hover:bg-blue-700'
                   } text-white`}
                 >
-                  {saving ? 'Updating...' : 'Update'}
+                  {saving ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-5 h-5 mr-2" />
+                      Update
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -2308,9 +2580,7 @@ export default function OfficeSupplyPage() {
                   className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors flex items-center"
                   title="Download PDF Report"
                 >
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                  </svg>
+                  <Download className="w-5 h-5 mr-2" />
                   Download PDF
                 </button>
               )}
@@ -2318,8 +2588,9 @@ export default function OfficeSupplyPage() {
               <button
                 onClick={fetchStoredSupplies}
                 disabled={loading}
-                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md transition-colors"
+                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md transition-colors flex items-center"
               >
+                <RefreshCw className={`w-5 h-5 mr-2 ${loading ? 'animate-spin' : ''}`} />
                 {loading ? 'Refreshing...' : 'Refresh'}
               </button>
             </div>
@@ -2492,14 +2763,16 @@ export default function OfficeSupplyPage() {
                           <div className="flex space-x-2">
                             <button
                               onClick={() => handleEditSupply(supply)}
-                              className="text-blue-600 hover:text-blue-900 transition-colors px-3 py-1 bg-blue-50 hover:bg-blue-100 rounded"
+                              className="text-blue-600 hover:text-blue-900 transition-colors px-3 py-1 bg-blue-50 hover:bg-blue-100 rounded flex items-center"
                             >
+                              <Edit className="w-4 h-4 mr-1" />
                               Edit
                             </button>
                             <button
-                              onClick={() => handleDeleteSupply(supply._id)}
-                              className="text-red-600 hover:text-red-900 transition-colors px-3 py-1 bg-red-50 hover:bg-red-100 rounded"
+                              onClick={() => handleDeleteSupplyClick(supply)}
+                              className="text-red-600 hover:text-red-900 transition-colors px-3 py-1 bg-red-50 hover:bg-red-100 rounded flex items-center"
                             >
+                              <Trash2 className="w-4 h-4 mr-1" />
                               Delete
                             </button>
                           </div>
@@ -2554,6 +2827,24 @@ export default function OfficeSupplyPage() {
           )}
         </div>
       </div>
+
+      {/* Add CSS for animations */}
+      <style jsx>{`
+        @keyframes slideIn {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        
+        .animate-slide-in {
+          animation: slideIn 0.3s ease-out;
+        }
+      `}</style>
     </div>
   );
 }

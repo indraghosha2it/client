@@ -410,7 +410,7 @@ const handleLoginSubmit = async (e) => {
       <div className="flex items-center space-x-3">
         <div className="w-10 h-10 rounded-full shadow-lg overflow-hidden">
           <Image
-            src="/logo.jpg"
+            src="/icon.png"
             alt="CostMaster Logo"
             width={40}
             height={40}
@@ -565,19 +565,6 @@ const handleLoginSubmit = async (e) => {
                   )}
                 </button>
 
-                {/* Sign Up Link */}
-                {/* <div className="pt-2 border-t border-gray-100">
-                  <p className="text-center text-gray-600">
-                    Don't have an account?{' '}
-                    <Link 
-                      href="/signUp" 
-                      className="text-blue-600 hover:text-blue-700 font-semibold hover:underline inline-flex items-center space-x-1"
-                    >
-                      <span>Create account</span>
-                      <ArrowRight size={16} />
-                    </Link>
-                  </p>
-                </div> */}
 
                
               </form>

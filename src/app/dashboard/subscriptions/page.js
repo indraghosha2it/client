@@ -1,8 +1,6 @@
 
 
 
-
-
 // 'use client';
 
 // import React, { useState, useEffect, useMemo, useRef } from "react";
@@ -26,6 +24,8 @@
 //       date: "",
 //       paymentMethod: "",
 //       note: "",
+//       durationNumber: "",
+//       durationUnit: "month", // Default value
 //     },
 //   ]);
 
@@ -40,7 +40,9 @@
 //     amount: "",
 //     date: "",
 //     paymentMethod: "",
-//     note: ""
+//     note: "",
+//     durationNumber: "",
+//     durationUnit: "month"
 //   });
 
 //   // Filter states
@@ -59,6 +61,14 @@
 //   const monthNames = [
 //     "January", "February", "March", "April", "May", "June",
 //     "July", "August", "September", "October", "November", "December"
+//   ];
+
+//   // Duration unit options
+//   const durationUnits = [
+//     { value: "day", label: "Day(s)" },
+//     { value: "week", label: "Week(s)" },
+//     { value: "month", label: "Month(s)" },
+//     { value: "year", label: "Year(s)" }
 //   ];
 
 //   // Currency symbol for Bangladeshi Taka
@@ -278,13 +288,16 @@
 //         new Date(subscription.date).toLocaleDateString(),
 //         `BDT ${subscription.amount.toFixed(2)}`,
 //         subscription.paymentMethod,
+//         subscription.durationNumber && subscription.durationUnit 
+//           ? `${subscription.durationNumber} ${subscription.durationUnit}${subscription.durationNumber > 1 ? 's' : ''}`
+//           : "-",
 //         subscription.note || "-"
 //       ]);
       
 //       // Add table using autoTable
 //       autoTable(doc, {
 //         startY: user ? 55 : 50,
-//         head: [['Software Name', 'Date', 'Amount (BDT)', 'Payment Method', 'Note']],
+//         head: [['Software Name', 'Date', 'Amount (BDT)', 'Payment Method', 'Duration', 'Note']],
 //         body: tableData,
 //         headStyles: {
 //           fillColor: [41, 128, 185],
@@ -296,11 +309,12 @@
 //           cellPadding: 3
 //         },
 //         columnStyles: {
-//           0: { cellWidth: 40 },
-//           1: { cellWidth: 30 },
-//           2: { cellWidth: 30 },
-//           3: { cellWidth: 35 },
-//           4: { cellWidth: 40 }
+//           0: { cellWidth: 35 },
+//           1: { cellWidth: 25 },
+//           2: { cellWidth: 25 },
+//           3: { cellWidth: 30 },
+//           4: { cellWidth: 25 },
+//           5: { cellWidth: 35 }
 //         },
 //         didDrawPage: function (data) {
 //           // Footer
@@ -377,6 +391,8 @@
 //         date: "",
 //         paymentMethod: "",
 //         note: "",
+//         durationNumber: "",
+//         durationUnit: "month",
 //       },
 //     ]);
 //   };
@@ -435,6 +451,8 @@
 //           date: "",
 //           paymentMethod: "",
 //           note: "",
+//           durationNumber: "",
+//           durationUnit: "month",
 //         }]);
 //         // Refresh stored subscriptions
 //         fetchStoredSubscriptions();
@@ -461,7 +479,9 @@
 //       date: new Date(subscription.date).toISOString().split('T')[0],
 //       amount: subscription.amount.toString(),
 //       paymentMethod: subscription.paymentMethod,
-//       note: subscription.note || ""
+//       note: subscription.note || "",
+//       durationNumber: subscription.durationNumber?.toString() || "",
+//       durationUnit: subscription.durationUnit || "month"
 //     });
 //   };
 
@@ -472,7 +492,9 @@
 //       amount: "",
 //       date: "",
 //       paymentMethod: "",
-//       note: ""
+//       note: "",
+//       durationNumber: "",
+//       durationUnit: "month"
 //     });
 //   };
 
@@ -503,7 +525,9 @@
 //           date: editForm.date,
 //           amount: parseFloat(editForm.amount),
 //           paymentMethod: editForm.paymentMethod,
-//           note: editForm.note
+//           note: editForm.note,
+//           durationNumber: editForm.durationNumber ? parseInt(editForm.durationNumber) : null,
+//           durationUnit: editForm.durationUnit
 //         }),
 //       });
 
@@ -528,7 +552,9 @@
 //           amount: "",
 //           date: "",
 //           paymentMethod: "",
-//           note: ""
+//           note: "",
+//           durationNumber: "",
+//           durationUnit: "month"
 //         });
 //       } else {
 //         setError(data.message || 'Failed to update subscription');
@@ -587,6 +613,18 @@
 //       month: 'short',
 //       day: 'numeric'
 //     });
+//   };
+
+//   // Format duration for display
+//   const formatDuration = (durationNumber, durationUnit) => {
+//     if (!durationNumber || !durationUnit) return "-";
+    
+//     const unitLabel = durationUnit === "day" ? "day" :
+//                      durationUnit === "week" ? "week" :
+//                      durationUnit === "month" ? "month" : "year";
+    
+//     const plural = durationNumber > 1 ? "s" : "";
+//     return `${durationNumber} ${unitLabel}${plural}`;
 //   };
 
 //   // Format currency in Bangladeshi Taka (৳)
@@ -660,12 +698,12 @@
 //                 <p className="text-sm text-gray-600">Logged in as: <span className="font-semibold">{user.name}</span></p>
 //                 <p className="text-xs text-gray-500">Role: <span className="font-medium capitalize">{user.role}</span></p>
 //               </div>
-//               <button
+//               {/* <button
 //                 onClick={handleLogout}
 //                 className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
 //               >
 //                 Logout
-//               </button>
+//               </button> */}
 //             </div>
 //           </div>
 
@@ -705,19 +743,20 @@
 
 //           <form onSubmit={handleSubmit} className="space-y-4">
 //             {/* Header Row */}
-//             <div className="hidden md:grid md:grid-cols-12 gap-3 text-sm font-semibold text-gray-600 px-1">
+//             <div className="hidden md:grid md:grid-cols-13 gap-3 text-sm font-semibold text-gray-600 px-1">
 //               <div className="col-span-3">Software Name</div>
 //               <div className="col-span-2">Amount (৳)</div>
 //               <div className="col-span-2">Date</div>
-//               <div className="col-span-2">Payment Method</div>
-//               <div className="col-span-2">Note (Optional)</div>
+//               <div className="col-span-2">Pay Method</div>
+//               <div className="col-span-2">Duration</div>
+//               <div className="col-span-1">Note</div>
 //               <div className="col-span-1 text-center">Action</div>
 //             </div>
 
 //             {subscriptions.map((sub) => (
 //               <div
 //                 key={sub.id}
-//                 className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-3 items-center p-3 md:p-0 md:border-0 border border-gray-200 rounded-md mb-3 md:mb-0"
+//                 className="grid grid-cols-1 md:grid-cols-13 gap-3 md:gap-3 items-center p-3 md:p-0 md:border-0 border border-gray-200 rounded-md mb-3 md:mb-0"
 //               >
 //                 {/* Mobile View - Vertical Layout */}
 //                 <div className="md:hidden space-y-3 w-full">
@@ -789,6 +828,44 @@
 //                         <option value="Bank Transfer">Bank Transfer</option>
 //                         <option value="Mobile Banking">Mobile Banking</option>
 //                         <option value="Card">Card</option>
+//                       </select>
+//                     </div>
+//                   </div>
+                  
+//                   {/* Duration Fields - Mobile */}
+//                   <div className="grid grid-cols-2 gap-2">
+//                     <div>
+//                       <label className="block text-xs font-medium text-gray-700 mb-1">
+//                         Duration Number
+//                       </label>
+//                       <input
+//                         type="number"
+//                         placeholder="e.g., 1"
+//                         value={sub.durationNumber}
+//                         onChange={(e) =>
+//                           updateField(sub.id, "durationNumber", e.target.value)
+//                         }
+//                         className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+//                         min="1"
+//                         step="1"
+//                       />
+//                     </div>
+//                     <div>
+//                       <label className="block text-xs font-medium text-gray-700 mb-1">
+//                         Duration Unit
+//                       </label>
+//                       <select
+//                         value={sub.durationUnit}
+//                         onChange={(e) =>
+//                           updateField(sub.id, "durationUnit", e.target.value)
+//                         }
+//                         className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+//                       >
+//                         {durationUnits.map(unit => (
+//                           <option key={unit.value} value={unit.value}>
+//                             {unit.label}
+//                           </option>
+//                         ))}
 //                       </select>
 //                     </div>
 //                   </div>
@@ -884,11 +961,45 @@
 //                   </select>
 //                 </div>
 
-//                 {/* Note (Optional) */}
+//                 {/* Duration Fields - Desktop */}
 //                 <div className="hidden md:block col-span-2">
+//                   <div className="flex space-x-2">
+//                     <div className="flex-1">
+//                       <input
+//                         type="number"
+//                         placeholder="Number"
+//                         value={sub.durationNumber}
+//                         onChange={(e) =>
+//                           updateField(sub.id, "durationNumber", e.target.value)
+//                         }
+//                         className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+//                         min="1"
+//                         step="1"
+//                       />
+//                     </div>
+//                     <div className="flex-1">
+//                       <select
+//                         value={sub.durationUnit}
+//                         onChange={(e) =>
+//                           updateField(sub.id, "durationUnit", e.target.value)
+//                         }
+//                         className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+//                       >
+//                         {durationUnits.map(unit => (
+//                           <option key={unit.value} value={unit.value}>
+//                             {unit.label}
+//                           </option>
+//                         ))}
+//                       </select>
+//                     </div>
+//                   </div>
+//                 </div>
+
+//                 {/* Note (Optional) */}
+//                 <div className="hidden md:block col-span-1">
 //                   <input
 //                     type="text"
-//                     placeholder="Optional note"
+//                     placeholder="Note"
 //                     value={sub.note}
 //                     onChange={(e) =>
 //                       updateField(sub.id, "note", e.target.value)
@@ -972,7 +1083,7 @@
 //               </div>
 //             )}
 
-//             <div className="grid grid-cols-12 gap-3 items-start">
+//             <div className="grid grid-cols-13 gap-3 items-start">
 //               {/* Software Name */}
 //               <div className="col-span-3">
 //                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1023,7 +1134,7 @@
 //               {/* Payment Method */}
 //               <div className="col-span-2">
 //                 <label className="block text-sm font-medium text-gray-700 mb-1">
-//                   Payment Method *
+//                   Pay Method *
 //                 </label>
 //                 <select
 //                   value={editForm.paymentMethod}
@@ -1039,17 +1150,50 @@
 //                 </select>
 //               </div>
 
-//               {/* Note */}
+//               {/* Duration Fields */}
 //               <div className="col-span-2">
 //                 <label className="block text-sm font-medium text-gray-700 mb-1">
-//                   Note (Optional)
+//                   Duration
+//                 </label>
+//                 <div className="flex space-x-2">
+//                   <div className="flex-1">
+//                     <input
+//                       type="number"
+//                       placeholder="Number"
+//                       value={editForm.durationNumber}
+//                       onChange={(e) => setEditForm({...editForm, durationNumber: e.target.value})}
+//                       className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+//                       min="1"
+//                       step="1"
+//                     />
+//                   </div>
+//                   <div className="flex-1">
+//                     <select
+//                       value={editForm.durationUnit}
+//                       onChange={(e) => setEditForm({...editForm, durationUnit: e.target.value})}
+//                       className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+//                     >
+//                       {durationUnits.map(unit => (
+//                         <option key={unit.value} value={unit.value}>
+//                           {unit.label}
+//                         </option>
+//                       ))}
+//                     </select>
+//                   </div>
+//                 </div>
+//               </div>
+
+//               {/* Note */}
+//               <div className="col-span-1">
+//                 <label className="block text-sm font-medium text-gray-700 mb-1">
+//                   Note
 //                 </label>
 //                 <input
 //                   type="text"
 //                   value={editForm.note}
 //                   onChange={(e) => setEditForm({...editForm, note: e.target.value})}
 //                   className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-//                   placeholder="Optional note"
+//                   placeholder="Optional"
 //                 />
 //               </div>
 
@@ -1233,6 +1377,9 @@
 //                         Payment Method
 //                       </th>
 //                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+//                         Duration
+//                       </th>
+//                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
 //                         Note
 //                       </th>
 //                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1265,6 +1412,11 @@
 //                           <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
 //                             {subscription.paymentMethod}
 //                           </span>
+//                         </td>
+//                         <td className="px-6 py-4 whitespace-nowrap">
+//                           <div className="text-sm text-gray-900">
+//                             {formatDuration(subscription.durationNumber, subscription.durationUnit)}
+//                           </div>
 //                         </td>
 //                         <td className="px-6 py-4 whitespace-nowrap">
 //                           <div className="text-sm text-gray-600 max-w-xs truncate">
@@ -1307,7 +1459,7 @@
 //                           {formatCurrency(calculateTotal())}
 //                         </div>
 //                       </td>
-//                       <td colSpan="3" className="px-6 py-4 text-sm text-gray-500">
+//                       <td colSpan="4" className="px-6 py-4 text-sm text-gray-500">
 //                         {filteredSubscriptions.length} subscription(s)
 //                       </td>
 //                     </tr>
@@ -1344,7 +1496,6 @@
 //   );
 // }
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
@@ -1352,12 +1503,75 @@ import { useRouter } from 'next/navigation';
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
+// Toast Component
+const Toast = ({ message, type = 'success', onClose }) => {
+  const [isVisible, setIsVisible] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsVisible(false);
+      setTimeout(onClose, 300);
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  const bgColor = type === 'success' ? 'bg-green-50 border-green-200' : 
+                  type === 'error' ? 'bg-red-50 border-red-200' : 
+                  'bg-blue-50 border-blue-200';
+  const textColor = type === 'success' ? 'text-green-700' : 
+                    type === 'error' ? 'text-red-700' : 
+                    'text-blue-700';
+  const iconColor = type === 'success' ? 'text-green-600' : 
+                    type === 'error' ? 'text-red-600' : 
+                    'text-blue-600';
+
+  if (!isVisible) return null;
+
+  return (
+    <div className={`fixed top-4 right-4 z-50 p-4 rounded-xl shadow-lg border ${bgColor} animate-slide-in`}>
+      <div className="flex items-center space-x-3">
+        {type === 'success' ? (
+          <svg className={`w-5 h-5 ${iconColor}`} fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+          </svg>
+        ) : type === 'error' ? (
+          <svg className={`w-5 h-5 ${iconColor}`} fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+          </svg>
+        ) : (
+          <svg className={`w-5 h-5 ${iconColor}`} fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+          </svg>
+        )}
+        <div>
+          <p className={`font-medium ${textColor}`}>{message}</p>
+        </div>
+        <button
+          onClick={() => {
+            setIsVisible(false);
+            setTimeout(onClose, 300);
+          }}
+          className="ml-4 text-gray-400 hover:text-gray-600"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export default function SoftwareSubscriptionPage() {
   const router = useRouter();
   
   // Authentication state
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  
+  // Toast state
+  const [toast, setToast] = useState(null);
   
   // Form state
   const [subscriptions, setSubscriptions] = useState([
@@ -1376,8 +1590,6 @@ export default function SoftwareSubscriptionPage() {
   const [storedSubscriptions, setStoredSubscriptions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({
     softwareName: "",
@@ -1417,6 +1629,16 @@ export default function SoftwareSubscriptionPage() {
 
   // Currency symbol for Bangladeshi Taka
   const currencySymbol = "৳";
+
+  // Show toast function
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+  };
+
+  // Clear toast
+  const clearToast = () => {
+    setToast(null);
+  };
 
   // Check authentication on mount
   useEffect(() => {
@@ -1498,7 +1720,7 @@ export default function SoftwareSubscriptionPage() {
       
       // Check if user has permission (admin or moderator)
       if (!['admin', 'moderator', 'user'].includes(parsedUser.role)) {
-        setError('Access denied. You do not have permission to manage software subscriptions.');
+        showToast('Access denied. You do not have permission to manage software subscriptions.', 'error');
         setTimeout(() => router.push('/dashboard'), 2000);
         return;
       }
@@ -1530,7 +1752,6 @@ export default function SoftwareSubscriptionPage() {
 
   const fetchStoredSubscriptions = async () => {
     setLoading(true);
-    setError("");
     try {
       const authToken = localStorage.getItem('auth_token');
       const response = await fetch(`${API_URL}/software-subscriptions`, {
@@ -1558,11 +1779,11 @@ export default function SoftwareSubscriptionPage() {
         });
         setStoredSubscriptions(sortedSubscriptions);
       } else {
-        setError(data.message || 'Failed to load subscriptions');
+        showToast(data.message || 'Failed to load subscriptions', 'error');
       }
     } catch (error) {
       console.error('Error fetching subscriptions:', error);
-      setError('Network error. Please check if server is running.');
+      showToast('Network error. Please check if server is running.', 'error');
     } finally {
       setLoading(false);
     }
@@ -1592,7 +1813,7 @@ export default function SoftwareSubscriptionPage() {
   // Generate PDF function
   const generatePDF = () => {
     if (filteredSubscriptions.length === 0) {
-      setError("No subscriptions to download");
+      showToast("No subscriptions to download", 'error');
       return;
     }
 
@@ -1708,12 +1929,12 @@ export default function SoftwareSubscriptionPage() {
       // Save the PDF
       doc.save(filename);
       
-      // Show success message
-      setSuccess(`PDF downloaded successfully: ${filename}`);
+      // Show success toast
+      showToast(`PDF downloaded successfully: ${filename}`);
       
     } catch (error) {
       console.error('Error generating PDF:', error);
-      setError('Failed to generate PDF. Please try again.');
+      showToast('Failed to generate PDF. Please try again.', 'error');
     }
   };
 
@@ -1749,8 +1970,6 @@ export default function SoftwareSubscriptionPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
-    setError("");
-    setSuccess("");
 
     // Filter out empty rows
     const validSubscriptions = subscriptions.filter(
@@ -1758,7 +1977,7 @@ export default function SoftwareSubscriptionPage() {
     );
 
     if (validSubscriptions.length === 0) {
-      setError("Please add at least one subscription");
+      showToast("Please add at least one subscription", 'error');
       setSaving(false);
       return;
     }
@@ -1786,7 +2005,7 @@ export default function SoftwareSubscriptionPage() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess(`Successfully saved ${data.data.length} subscription(s)`);
+        showToast(`Successfully saved ${data.data.length} subscription(s)`);
         // Reset form
         setSubscriptions([{
           id: crypto.randomUUID(),
@@ -1803,14 +2022,16 @@ export default function SoftwareSubscriptionPage() {
         
         // Show warnings if any
         if (data.warnings && data.warnings.length > 0) {
-          console.warn('Warnings:', data.warnings);
+          data.warnings.forEach(warning => {
+            showToast(warning, 'error');
+          });
         }
       } else {
-        setError(data.message || 'Failed to save subscriptions');
+        showToast(data.message || 'Failed to save subscriptions', 'error');
       }
     } catch (error) {
       console.error('Error saving subscriptions:', error);
-      setError('Network error. Please check if server is running.');
+      showToast('Network error. Please check if server is running.', 'error');
     } finally {
       setSaving(false);
     }
@@ -1847,13 +2068,11 @@ export default function SoftwareSubscriptionPage() {
 
     // Validation
     if (!editForm.softwareName.trim() || !editForm.amount || !editForm.date) {
-      setError("Please fill all required fields");
+      showToast("Please fill all required fields", 'error');
       return;
     }
 
     setSaving(true);
-    setError("");
-    setSuccess("");
 
     try {
       const authToken = localStorage.getItem('auth_token');
@@ -1886,7 +2105,7 @@ export default function SoftwareSubscriptionPage() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess('Subscription updated successfully');
+        showToast('Subscription updated successfully');
         // Refresh the list
         fetchStoredSubscriptions();
         // Reset edit mode
@@ -1901,18 +2120,20 @@ export default function SoftwareSubscriptionPage() {
           durationUnit: "month"
         });
       } else {
-        setError(data.message || 'Failed to update subscription');
+        showToast(data.message || 'Failed to update subscription', 'error');
       }
     } catch (error) {
       console.error('Error updating subscription:', error);
-      setError('Failed to update subscription');
+      showToast('Failed to update subscription', 'error');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteSubscription = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this subscription?')) return;
+    // Show confirmation dialog like office rent page
+    const isConfirmed = window.confirm('Are you sure you want to delete this subscription?');
+    if (!isConfirmed) return;
 
     try {
       const authToken = localStorage.getItem('auth_token');
@@ -1935,15 +2156,19 @@ export default function SoftwareSubscriptionPage() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess('Subscription deleted successfully');
+        showToast('Subscription deleted successfully');
         // Refresh the list
         fetchStoredSubscriptions();
+        // If we're deleting the currently edited subscription, cancel edit mode
+        if (editingId === id) {
+          handleCancelEdit();
+        }
       } else {
-        setError(data.message || 'Failed to delete subscription');
+        showToast(data.message || 'Failed to delete subscription', 'error');
       }
     } catch (error) {
       console.error('Error deleting subscription:', error);
-      setError('Failed to delete subscription');
+      showToast('Failed to delete subscription', 'error');
     }
   };
 
@@ -2029,6 +2254,9 @@ export default function SoftwareSubscriptionPage() {
 
   return (
     <div className="min-h-screen bg-gray-100 p-4 md:p-6">
+      {/* Toast Notification */}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
+      
       <div className="max-w-7xl mx-auto">
         {/* Header with User Info */}
         <div className="mb-8">
@@ -2042,12 +2270,6 @@ export default function SoftwareSubscriptionPage() {
                 <p className="text-sm text-gray-600">Logged in as: <span className="font-semibold">{user.name}</span></p>
                 <p className="text-xs text-gray-500">Role: <span className="font-medium capitalize">{user.role}</span></p>
               </div>
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
-              >
-                Logout
-              </button>
             </div>
           </div>
 
@@ -2072,18 +2294,6 @@ export default function SoftwareSubscriptionPage() {
         {/* Form Section */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <h3 className="text-lg font-semibold mb-4">Add New Subscriptions</h3>
-          
-          {/* Messages */}
-          {error && !editingId && (
-            <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md">
-              {error}
-            </div>
-          )}
-          {success && !editingId && (
-            <div className="mb-4 p-3 bg-green-100 text-green-700 rounded-md">
-              {success}
-            </div>
-          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Header Row */}
@@ -2415,17 +2625,6 @@ export default function SoftwareSubscriptionPage() {
                 ✕ Close
               </button>
             </div>
-            
-            {error && (
-              <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md">
-                {error}
-              </div>
-            )}
-            {success && (
-              <div className="mb-4 p-3 bg-green-100 text-green-700 rounded-md">
-                {success}
-              </div>
-            )}
 
             <div className="grid grid-cols-13 gap-3 items-start">
               {/* Software Name */}
@@ -2836,6 +3035,24 @@ export default function SoftwareSubscriptionPage() {
           )}
         </div>
       </div>
+
+      {/* Add CSS for animation */}
+      <style jsx>{`
+        @keyframes slideIn {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        
+        .animate-slide-in {
+          animation: slideIn 0.3s ease-out;
+        }
+      `}</style>
     </div>
   );
 }

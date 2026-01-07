@@ -386,10 +386,28 @@ const checkUserLoggedIn = async () => {
     return false;
   };
 
-  const getCurrentUser = () => {
-    if (user) return user;
+  // const getCurrentUser = () => {
+  //   if (user) return user;
     
-    // Fallback to localStorage
+  //   // Fallback to localStorage
+  //   const localUser = localStorage.getItem('user');
+  //   if (localUser) {
+  //     try {
+  //       return JSON.parse(localUser);
+  //     } catch {
+  //       return null;
+  //     }
+  //   }
+  //   return null;
+  // };
+
+
+  const getCurrentUser = () => {
+  // Return the React state user first (always available)
+  if (user) return user;
+  
+  // Only access localStorage on the client side
+  if (typeof window !== 'undefined') {
     const localUser = localStorage.getItem('user');
     if (localUser) {
       try {
@@ -398,9 +416,9 @@ const checkUserLoggedIn = async () => {
         return null;
       }
     }
-    return null;
-  };
-
+  }
+  return null;
+};
   return (
     <AuthContext.Provider
       value={{

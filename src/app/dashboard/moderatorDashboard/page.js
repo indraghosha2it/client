@@ -1176,76 +1176,7 @@ export default function ModeratorDashboard() {
         )}
       </div>
 
-      {/* Quick Stats Cards - Added Food Costs */}
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-500">Total Monthly Food Costs</div>
-            <Utensils className="w-4 h-4 text-green-500" />
-          </div>
-          <div className="text-2xl font-bold text-green-600 mt-1">
-            {formatCurrency(dashboardData.monthlySummary.foodCosts)}
-          </div>
-          <div className="text-xs text-gray-400 mt-1">
-            {dashboardData.monthlySummary.foodCosts > 0 
-              ? `${calculatePercentage(dashboardData.monthlySummary.foodCosts)}% of monthly total`
-              : 'No food cost data'
-            }
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-sm text-gray-500">Daily Food Average</div>
-          <div className="text-2xl font-bold text-blue-600 mt-1">
-            {formatCurrency(dashboardData.monthlySummary.foodCosts / 30)}
-          </div>
-          <div className="text-xs text-gray-400 mt-1">
-            Based on 30 days
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-sm text-gray-500">Food % of Monthly Total</div>
-          <div className="text-2xl font-bold text-purple-600 mt-1">
-            {calculatePercentage(dashboardData.monthlySummary.foodCosts)}%
-          </div>
-          <div className="text-xs text-gray-400 mt-1">
-            For {MONTHS[dashboardData.selectedMonth - 1]}
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-500">Yearly Food Costs</div>
-            <div className="flex items-center">
-              <Utensils className="w-4 h-4 text-green-500" />
-              <Calendar className="w-4 h-4 text-gray-400 ml-1" />
-            </div>
-          </div>
-          <div className="text-2xl font-bold text-orange-600 mt-1">
-            {formatCurrency(
-              dashboardData.yearlySummary.categoryTotals.find(item => item.category === 'Food Costs')?.amount || 0
-            )}
-          </div>
-          <div className="text-xs text-gray-400 mt-1">
-            Total for {dashboardData.selectedYearForYearly}
-          </div>
-        </div>
-      </div>
-
-      {/* Access Restrictions Note */}
-      <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-        <div className="flex items-center">
-          <Shield className="w-5 h-5 text-yellow-600 mr-2" />
-          <div>
-            <p className="text-yellow-700 font-medium">Moderator Access Restrictions</p>
-            <p className="text-yellow-600 text-sm mt-1">
-              As a moderator, you cannot access employee salary data, software subscription details, 
-              or other sensitive financial information. Contact an administrator for full access.
-            </p>
-          </div>
-        </div>
-      </div>
+    
     </div>
   );
 }

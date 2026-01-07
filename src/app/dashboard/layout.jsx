@@ -484,7 +484,7 @@ export default function DashboardLayout({ children }) {
                   <span className={`text-xs px-2 py-1 rounded-full ${roleInfo.badgeBg} text-white`}>
                     {roleInfo.text}
                   </span>
-                  {currentUser?.role === 'admin' && (
+                  {/* {currentUser?.role === 'admin' && (
                     <span className="text-xs px-2 py-1 rounded-full bg-purple-100 text-purple-800">
                       Full Access
                     </span>
@@ -493,7 +493,7 @@ export default function DashboardLayout({ children }) {
                     <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800">
                       Limited Access
                     </span>
-                  )}
+                  )} */}
                 </div>
               </div>
               
